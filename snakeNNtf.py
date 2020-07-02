@@ -102,12 +102,6 @@ class SnakeNN:
                       metrics=[])
         return model
 
-    def relu_der(self, dA, Z):
-        dZ = np.array(dA, copy=True)
-        dZ[Z <= 0] = 0
-        dZ[Z > 0] = 1
-        return dZ
-
     def train_model(self, training_data, model):
         X = np.array([i[0] for i in training_data]).reshape(-1, 5)
         y = np.array([i[1] for i in training_data]).reshape(-1, 1)
@@ -193,4 +187,4 @@ class SnakeNN:
 
 if __name__ == '__main__':
     snakeNN = SnakeNN()
-    snakeNN.extract_weights()
+    snakeNN.train()
