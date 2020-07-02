@@ -8,7 +8,7 @@ import tensorflow as tf
 
 
 class SnakeNN:
-    def __init__(self, initial_games=100000, test_games=10, goal_steps=2000, lr=1e-1, filename='model.h5'):
+    def __init__(self, initial_games=10000, test_games=10, goal_steps=2000, lr=1e-1, filename='model.h5'):
         self.initial_games = initial_games
         self.test_games = test_games
         self.goal_steps = goal_steps
@@ -93,9 +93,10 @@ class SnakeNN:
         return point.tolist() in snake[:-1] or point[0] == 0 or point[1] == 0 or point[0] == 21 or point[1] == 21
 
     def model(self):
-        model = tf.keras.Sequential()
-        model.add(tf.keras.layers.Dense(25, input_dim=5, activation='relu'))
-        model.add(tf.keras.layers.Dense(1, activation='linear'))
+        xIn = tf.keras.Input(shape=(5))
+        x = tf.keras.layers.Dense(25, activation='relu')(xIn)
+        x = tf.keras.layers.Dense(1, activation='linear')(x)
+        model = tf.keras.Model(inputs=xIn, outputs=[x])
         model.compile(optimizer='adam',
                       loss='mse',
                       metrics=[])
@@ -166,19 +167,30 @@ class SnakeNN:
         nn = self.train_model(training_data, nn)
         self.test_model(nn)
 
-    def load_model(self):
+    def load(self):
         nn = tf.keras.models.load_model(self.filename)
         return nn
 
     def visualize(self):
-        nn = self.load_model()
+        nn = self.load()
         self.visualize_game(nn)
 
     def test(self):
-        nn = self.load_model()
+        nn = self.load()
         self.test_model(nn)
+
+    def extract_weights(self):
+        nn = self.load()
+        layers = []
+        for i, layer in enumerate(nn.layers[1:]):
+            layers.append(np.array(layer.get_weights()))
+        layers[0][0] = np.swapaxes(layers[0][0], 0, 1)
+        layers[1][0] = np.swapaxes(layers[1][0], 0, 1)
+        layers[0][1] = np.expand_dims(layers[0][1], axis=-1)
+        layers[1][1] = np.expand_dims(layers[1][1], axis=-1)
+        np.savez('model_tf.npz', W1=layers[0][0], b1=layers[0][1], W2=layers[1][0], b2=layers[1][1])
 
 
 if __name__ == '__main__':
     snakeNN = SnakeNN()
-    snakeNN.train()
+    snakeNN.extract_weights()

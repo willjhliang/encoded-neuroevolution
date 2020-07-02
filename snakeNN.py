@@ -200,9 +200,9 @@ class SnakeNN:
         nn = self.train_model(training_data, nn)
         self.test_model(nn)
 
-    def load_model(self):
+    def load(self):
         nn = self.model()
-        npz = np.load('model.npz')
+        npz = np.load('model_tf.npz')
         nn['W1'] = npz['W1']
         nn['b1'] = npz['b1']
         nn['W2'] = npz['W2']
@@ -210,15 +210,14 @@ class SnakeNN:
         return nn
 
     def visualize(self):
-        nn = self.load_model()
+        nn = self.load()
         self.visualize_game(nn)
 
     def test(self):
-        nn = self.load_model()
+        nn = self.load()
         self.test_model(nn)
 
 
 if __name__ == '__main__':
     snakeNN = SnakeNN()
-    snakeNN.train()
-    snakeNN.visualize()
+    snakeNN.test()
