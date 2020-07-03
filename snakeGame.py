@@ -109,7 +109,7 @@ class SnakeGame:
 
 
 if __name__ == '__main__':
-    gui = True
+    gui = False
     game = SnakeGame(gui=gui)
     game.start()
     for _ in range(20):

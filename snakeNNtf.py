@@ -137,6 +137,7 @@ class SnakeNN:
         print(Counter(steps_arr))
         print('Average score: ' + str(1.0 * sum(scores_arr) / len(scores_arr)))
         print(Counter(scores_arr))
+        return 1.0 * sum(scores_arr) / len(scores_arr)
 
     def visualize_game(self, model):
         game = SnakeGame(gui=True)
@@ -179,12 +180,16 @@ class SnakeNN:
         for i, layer in enumerate(nn.layers[1:]):
             layers.append(np.array(layer.get_weights()))
         layers[0][0] = np.swapaxes(layers[0][0], 0, 1)
+        print(layers[0][0].shape)
         layers[1][0] = np.swapaxes(layers[1][0], 0, 1)
+        print(layers[1][0].shape)
         layers[0][1] = np.expand_dims(layers[0][1], axis=-1)
+        print(layers[0][1].shape)
         layers[1][1] = np.expand_dims(layers[1][1], axis=-1)
+        print(layers[1][1].shape)
         np.savez('model_tf.npz', W1=layers[0][0], b1=layers[0][1], W2=layers[1][0], b2=layers[1][1])
 
 
 if __name__ == '__main__':
     snakeNN = SnakeNN()
-    snakeNN.train()
+    snakeNN.extract_weights()

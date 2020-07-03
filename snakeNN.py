@@ -176,6 +176,7 @@ class SnakeNN:
         print(Counter(steps_arr))
         print('Average score: ' + str(1.0 * sum(scores_arr) / len(scores_arr)))
         print(Counter(scores_arr))
+        return 1.0 * sum(scores_arr) / len(scores_arr)
 
     def visualize_game(self, model):
         game = SnakeGame(gui=True)
