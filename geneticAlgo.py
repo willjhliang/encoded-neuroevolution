@@ -1,11 +1,9 @@
-
-from snakeNN import snakeNN
+from snakeBaseNN import snakeNN
 import numpy as np
-
 
 class GeneticAlgo:
     def __init__(self, iterations=100, pop_size=100, mut_prob=0.1, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3):
-        self.iterations = 100
+        self.iterations = iterations
         self.pop_size = pop_size
         self.mut_prob = mut_prob
         self.elite_ratio = elite_ratio
@@ -13,24 +11,34 @@ class GeneticAlgo:
         self.par_ratio = par_ratio
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
-        self.compress_len = 25 * 5 + 25 + 25 * 1 + 1
+        self.compress_len = self.compress(snakeNN.model()).size
+        self.training_data = snakeNN.initial_population()
+        self.X = np.array([i[0] for i in self.training_data]).T
+        self.y = np.array([i[1] for i in self.training_data]).T
 
-    def compress(W1, b1, W2, b2):
+    def compress(model):
+        W1 = model['W1']
+        b1 = model['b1']
+
         ret = W1.flatten()
         ret = np.concatenate(ret, b1.flatten())
-        ret = np.concatenate(ret, W2.flatten())
-        ret = np.concatenate(ret, b2.flatten())
+        # ret = np.concatenate(ret, W2.flatten())
+        # ret = np.concatenate(ret, b2.flatten())
         return ret
 
     def expand(arr):
-        W1, arr = np.split(arr, 25 * 5)
-        b1, arr = np.split(arr, 25)
-        W2, b2 = np.split(arr, 25 * 1)
-        W1 = W1.reshape(25, 5)
-        b1 = b1.reshape(25, 1)
-        W2 = W2.reshape(1, 25)
-        b2 = b2.reshape(1, 1)
-        return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
+        W1, b1 = np.split(arr, 1 * 4)
+        W1 = W1.reshape(1, 4)
+        b1 = b1.reshape(1, 1)
+        return {'W1': W1, 'b1': b1}
+        # W1, arr = np.split(arr, 25 * 5)
+        # b1, arr = np.split(arr, 25)
+        # W2, b2 = np.split(arr, 25 * 1)
+        # W1 = W1.reshape(25, 5)
+        # b1 = b1.reshape(25, 1)
+        # W2 = W2.reshape(1, 25)
+        # b2 = b2.reshape(1, 1)
+        # return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
 
     def cross(self, x, y):
         c1 = x.copy()
@@ -50,19 +58,19 @@ class GeneticAlgo:
     def run(self):
         pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
         for p in range(self.pop_size):
-            W1 = np.random.randn(25, 5) * 0.01
-            b1 = np.zeros(shape=(25, 1))
-            W2 = np.random.randn(1, 25) * 0.01
-            b2 = np.zeros(shape=(1, 1))
-            pop[p] = self.compress(W1, b1, W2, b2)
+            pop[p] = self.compress(snakeNN.model())
 
         t = 1
         while t <= self.iterations:
             fitness = np.zeros(self.pop_size)
             for p in range(self.pop_size):
-                fitness[p] = snakeNN.test_model(self.expand(pop[p]))
+                J, _, _ = snakeNN.forward_prop(self.X, self.y, self.expand(pop[p]))
+                fitness[p] = J
             pop = pop[np.argsort(fitness)]
             fitness = fitness[np.argsort(fitness)]
+
+            J, _, _ = snakeNN.forward_prop(self.X, self.y, self.expand(pop[0]))
+            print(J)
 
             prob = np.array(fitness, copy=True)
             prob = prob / np.sum(prob)
@@ -92,3 +100,8 @@ class GeneticAlgo:
                 pop[i], pop[i + 1] = self.cross(p1, p2)
                 pop[i] = self.mut(pop[i])
                 pop[i + 1] = self.mut(pop[i + 1])
+
+
+if __name__ == '__main__':
+    GA = GeneticAlgo()
+    GA.run()

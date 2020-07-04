@@ -4,9 +4,11 @@ import numpy as np
 import math
 from collections import Counter
 
+import tensorflow as tf
+
 
 class SnakeNN:
-    def __init__(self, initial_games=10000, test_games=1000, goal_steps=2000, lr=1e-2):
+    def __init__(self, initial_games=10000, test_games=10, goal_steps=2000, lr=1e-1, filename='tfModel.h5'):
         self.initial_games = initial_games
         self.test_games = test_games
         self.goal_steps = goal_steps
@@ -15,6 +17,7 @@ class SnakeNN:
                              (0, 1): 1,
                              (1, 0): 2,
                              (0, -1): 3}
+        self.filename = filename
 
     def initial_population(self):
         training_data = []
@@ -90,68 +93,26 @@ class SnakeNN:
         return point.tolist() in snake[:-1] or point[0] == 0 or point[1] == 0 or point[0] == 21 or point[1] == 21
 
     def model(self):
-        W1 = np.random.randn(25, 5) * 0.01
-        b1 = np.zeros(shape=(25, 1))
-        W2 = np.random.randn(1, 25) * 0.01
-        b2 = np.zeros(shape=(1, 1))
-        return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
-
-    def relu_der(self, dA, Z):
-        dZ = np.array(dA, copy=True)
-        dZ[Z <= 0] = 0
-        dZ[Z > 0] = 1
-        return dZ
-
-    def train_model(self, training_data, model):
-        X = np.array([i[0] for i in training_data]).T
-        y = np.array([i[1] for i in training_data]).T
-        m = X.shape[1]
-
-        for _ in range(100):
-            W1 = model['W1']
-            b1 = model['b1']
-            W2 = model['W2']
-            b2 = model['b2']
-
-            Z1 = np.dot(W1, X) + b1
-            A1 = np.maximum(Z1, 0)
-            Z2 = np.dot(W2, A1) + b2
-            A2 = Z2
-
-            J = 1 / 2 * np.mean((A2 - y) ** 2)
-
-            dZ2 = (A2 - y)
-            dW2 = (1 / m) * np.dot(dZ2, A1.T)
-            db2 = (1 / m) * np.sum(dZ2, axis=1, keepdims=True)
-            dZ1 = self.relu_der(np.dot(W2.T, dZ2), Z1)
-            dW1 = (1 / m) * np.dot(dZ1, X.T)
-            db1 = (1 / m) * np.sum(dZ1, axis=1, keepdims=True)
-
-            model['W1'] = W1 - self.lr * dW1
-            model['b1'] = b1 - self.lr * db1
-            model['W2'] = W2 - self.lr * dW2
-            model['b2'] = b2 - self.lr * db2
-        np.savez('model.npz', W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
+        xIn = tf.keras.Input(shape=(5))
+        x = tf.keras.layers.Dense(25, activation='relu')(xIn)
+        x = tf.keras.layers.Dense(1, activation='linear')(x)
+        model = tf.keras.Model(inputs=xIn, outputs=[x])
+        model.compile(optimizer='adam',
+                      loss='mse',
+                      metrics=[])
         return model
 
-    def predict(self, X, model):
-        W1 = model['W1']
-        b1 = model['b1']
-        W2 = model['W2']
-        b2 = model['b2']
-
-        X = np.expand_dims(X, axis=-1)
-
-        Z1 = np.dot(W1, X) + b1
-        A1 = np.maximum(Z1, 0)
-        Z2 = np.dot(W2, A1) + b2
-        A2 = Z2
-        return A2
+    def train_model(self, training_data, model):
+        X = np.array([i[0] for i in training_data]).reshape(-1, 5)
+        y = np.array([i[1] for i in training_data]).reshape(-1, 1)
+        model.fit(X, y, epochs=3, shuffle=True)
+        model.save(self.filename)
+        return model
 
     def test_model(self, model):
         steps_arr = []
         scores_arr = []
-        for _ in range(self.test_games):
+        for i in range(self.test_games):
             steps = 0
             game_mem = []
             game = SnakeGame()
@@ -160,7 +121,7 @@ class SnakeNN:
             for _ in range(self.goal_steps):
                 preds = []
                 for action in range(-1, 2):
-                    preds.append(self.predict(np.append([action], prev_obs), model))
+                    preds.append(model.predict(np.append([action], prev_obs).reshape(-1, 5)))
                 action = np.argmax(np.array(preds))
                 game_action = self.get_game_action(snake, action - 1)
                 done, score, snake, food = game.step(game_action)
@@ -176,6 +137,7 @@ class SnakeNN:
         print(Counter(steps_arr))
         print('Average score: ' + str(1.0 * sum(scores_arr) / len(scores_arr)))
         print(Counter(scores_arr))
+        return 1.0 * sum(scores_arr) / len(scores_arr)
 
     def visualize_game(self, model):
         game = SnakeGame(gui=True)
@@ -184,7 +146,7 @@ class SnakeNN:
         for _ in range(self.goal_steps):
             preds = []
             for action in range(-1, 2):
-                preds.append(self.predict(np.append([action], prev_obs), model))
+                preds.append(model.predict(np.append([action], prev_obs).reshape(-1, 5)))
             action = np.argmax(np.array(preds))
             game_action = self.get_game_action(snake, action - 1)
             done, _, snake, food = game.step(game_action)
@@ -201,12 +163,7 @@ class SnakeNN:
         self.test_model(nn)
 
     def load(self):
-        nn = self.model()
-        npz = np.load('model_tf.npz')
-        nn['W1'] = npz['W1']
-        nn['b1'] = npz['b1']
-        nn['W2'] = npz['W2']
-        nn['b2'] = npz['b2']
+        nn = tf.keras.models.load_model(self.filename)
         return nn
 
     def visualize(self):
@@ -217,7 +174,22 @@ class SnakeNN:
         nn = self.load()
         self.test_model(nn)
 
+    def extract_weights(self):
+        nn = self.load()
+        layers = []
+        for i, layer in enumerate(nn.layers[1:]):
+            layers.append(np.array(layer.get_weights()))
+        layers[0][0] = np.swapaxes(layers[0][0], 0, 1)
+        print(layers[0][0].shape)
+        layers[1][0] = np.swapaxes(layers[1][0], 0, 1)
+        print(layers[1][0].shape)
+        layers[0][1] = np.expand_dims(layers[0][1], axis=-1)
+        print(layers[0][1].shape)
+        layers[1][1] = np.expand_dims(layers[1][1], axis=-1)
+        print(layers[1][1].shape)
+        np.savez('tfModel.npz', W1=layers[0][0], b1=layers[0][1], W2=layers[1][0], b2=layers[1][1])
+
 
 if __name__ == '__main__':
     snakeNN = SnakeNN()
-    snakeNN.test()
+    snakeNN.extract_weights()
