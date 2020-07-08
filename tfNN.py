@@ -7,8 +7,17 @@ from collections import Counter
 import tensorflow as tf
 
 
+class MinMax(tf.keras.constraints.Constraint):
+    def __init__(self, min_value, max_value):
+        self.min_val = min_value
+        self.max_val = max_value
+
+    def __call__(self, w):
+        return tf.clip_by_value(w, self.min_val, self.max_val)
+
+
 class SnakeNN:
-    def __init__(self, initial_games=10000, test_games=10, goal_steps=2000, lr=1e-1, filename='tfModel.h5'):
+    def __init__(self, initial_games=10000, test_games=10, goal_steps=2000, lr=1e-2, tf_file='tfModel.h5', file='tfModel.npz'):
         self.initial_games = initial_games
         self.test_games = test_games
         self.goal_steps = goal_steps
@@ -17,7 +26,10 @@ class SnakeNN:
                              (0, 1): 1,
                              (1, 0): 2,
                              (0, -1): 3}
-        self.filename = filename
+        self.tf_file = tf_file
+        self.file = file
+        self.clip_lo = -1
+        self.clip_hi = 1
 
     def initial_population(self):
         training_data = []
@@ -94,8 +106,8 @@ class SnakeNN:
 
     def model(self):
         xIn = tf.keras.Input(shape=(5))
-        x = tf.keras.layers.Dense(25, activation='relu')(xIn)
-        x = tf.keras.layers.Dense(1, activation='linear')(x)
+        x = tf.keras.layers.Dense(25, activation='relu', kernel_constraint=MinMax(self.clip_lo, self.clip_hi), bias_constraint=MinMax(self.clip_lo, self.clip_hi))(xIn)
+        x = tf.keras.layers.Dense(1, activation='linear', kernel_constraint=MinMax(self.clip_lo, self.clip_hi), bias_constraint=MinMax(self.clip_lo, self.clip_hi))(x)
         model = tf.keras.Model(inputs=xIn, outputs=[x])
         model.compile(optimizer='adam',
                       loss='mse',
@@ -106,13 +118,14 @@ class SnakeNN:
         X = np.array([i[0] for i in training_data]).reshape(-1, 5)
         y = np.array([i[1] for i in training_data]).reshape(-1, 1)
         model.fit(X, y, epochs=3, shuffle=True)
-        model.save(self.filename)
+        model.save(self.tf_file)
         return model
 
     def test_model(self, model):
         steps_arr = []
         scores_arr = []
         for i in range(self.test_games):
+            print('Starting game ' + str(i))
             steps = 0
             game_mem = []
             game = SnakeGame()
@@ -163,7 +176,8 @@ class SnakeNN:
         self.test_model(nn)
 
     def load(self):
-        nn = tf.keras.models.load_model(self.filename)
+        nn = self.model()
+        nn.load_weights(self.tf_file)
         return nn
 
     def visualize(self):
@@ -174,7 +188,7 @@ class SnakeNN:
         nn = self.load()
         self.test_model(nn)
 
-    def extract_weights(self):
+    def save(self):
         nn = self.load()
         layers = []
         for i, layer in enumerate(nn.layers[1:]):
@@ -187,9 +201,10 @@ class SnakeNN:
         print(layers[0][1].shape)
         layers[1][1] = np.expand_dims(layers[1][1], axis=-1)
         print(layers[1][1].shape)
-        np.savez('tfModel.npz', W1=layers[0][0], b1=layers[0][1], W2=layers[1][0], b2=layers[1][1])
+        np.savez(self.file, W1=layers[0][0], b1=layers[0][1], W2=layers[1][0], b2=layers[1][1])
 
 
 if __name__ == '__main__':
     snakeNN = SnakeNN()
-    snakeNN.extract_weights()
+    snakeNN.train()
+    snakeNN.save()

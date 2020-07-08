@@ -6,7 +6,7 @@ from collections import Counter
 
 
 class SnakeNN:
-    def __init__(self, initial_games=10000, test_games=1000, goal_steps=2000, lr=1e-2):
+    def __init__(self, initial_games=1000, test_games=1000, goal_steps=2000, lr=1e-2, file='defModel.npz'):
         self.initial_games = initial_games
         self.test_games = test_games
         self.goal_steps = goal_steps
@@ -15,6 +15,7 @@ class SnakeNN:
                              (0, 1): 1,
                              (1, 0): 2,
                              (0, -1): 3}
+        self.file = file
 
     def initial_population(self):
         training_data = []
@@ -38,6 +39,7 @@ class SnakeNN:
                         training_data.append([action_obs, 0])
                     prev_obs = self.gen_obs(snake, food)
                     prev_food_dist = food_dist
+        print("Finished generating training data")
         return training_data
 
     def gen_obs(self, snake, food):
@@ -102,36 +104,41 @@ class SnakeNN:
         dZ[Z > 0] = 1
         return dZ
 
+    def forward_prop(self, X, y, model):
+        W1 = model['W1']
+        b1 = model['b1']
+        W2 = model['W2']
+        b2 = model['b2']
+
+        Z1 = np.dot(W1, X) + b1
+        A1 = np.maximum(Z1, 0)
+        Z2 = np.dot(W2, A1) + b2
+        A2 = Z2
+        J = 1 / 2 * np.mean((A2 - y) ** 2)
+
+        return J, Z1, A1, Z2, A2
+
     def train_model(self, training_data, model):
         X = np.array([i[0] for i in training_data]).T
         y = np.array([i[1] for i in training_data]).T
         m = X.shape[1]
 
         for _ in range(100):
-            W1 = model['W1']
-            b1 = model['b1']
-            W2 = model['W2']
-            b2 = model['b2']
-
-            Z1 = np.dot(W1, X) + b1
-            A1 = np.maximum(Z1, 0)
-            Z2 = np.dot(W2, A1) + b2
-            A2 = Z2
-
-            J = 1 / 2 * np.mean((A2 - y) ** 2)
+            J, Z1, A1, Z2, A2 = self.forward_prop(X, y, model)
 
             dZ2 = (A2 - y)
             dW2 = (1 / m) * np.dot(dZ2, A1.T)
             db2 = (1 / m) * np.sum(dZ2, axis=1, keepdims=True)
+            W2 = model['W2']
             dZ1 = self.relu_der(np.dot(W2.T, dZ2), Z1)
             dW1 = (1 / m) * np.dot(dZ1, X.T)
             db1 = (1 / m) * np.sum(dZ1, axis=1, keepdims=True)
 
-            model['W1'] = W1 - self.lr * dW1
-            model['b1'] = b1 - self.lr * db1
-            model['W2'] = W2 - self.lr * dW2
-            model['b2'] = b2 - self.lr * db2
-        np.savez('model.npz', W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
+            model['W1'] -= self.lr * dW1
+            model['b1'] -= self.lr * db1
+            model['W2'] -= self.lr * dW2
+            model['b2'] -= self.lr * db2
+        np.savez(self.file, W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
         return model
 
     def predict(self, X, model):
@@ -200,9 +207,11 @@ class SnakeNN:
         nn = self.train_model(training_data, nn)
         self.test_model(nn)
 
-    def load(self):
+    def load(self, file=None):
+        if file is None:
+            file = self.file
         nn = self.model()
-        npz = np.load('model_tf.npz')
+        npz = np.load(file)
         nn['W1'] = npz['W1']
         nn['b1'] = npz['b1']
         nn['W2'] = npz['W2']
@@ -210,14 +219,14 @@ class SnakeNN:
         return nn
 
     def visualize(self):
-        nn = self.load()
+        nn = self.load('tfModel.npz')
         self.visualize_game(nn)
 
     def test(self):
-        nn = self.load()
+        nn = self.load('tfModel.npz')
         self.test_model(nn)
 
 
-if __name__ == '__main__':
-    snakeNN = SnakeNN()
-    snakeNN.test()
+# if __name__ == '__main__':
+#     snakeNN = SnakeNN()
+#     snakeNN.test()

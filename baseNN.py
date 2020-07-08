@@ -1,7 +1,6 @@
 from snakeGame import SnakeGame
 from random import randint
 import numpy as np
-import math
 from collections import Counter
 
 
@@ -95,7 +94,7 @@ class SnakeNN:
 
             model['W1'] -= self.lr * dW1
             model['b1'] -= self.lr * db1
-        np.savez('simpleModel.npz', W1=model['W1'], b1=model['b1'])
+        np.savez('baseModel.npz', W1=model['W1'], b1=model['b1'])
         return model
 
     def predict(self, X, model):
@@ -158,9 +157,15 @@ class SnakeNN:
 
     def load(self):
         nn = self.model()
-        npz = np.load('simpleModel.npz')
+        npz = np.load('baseModel.npz')
         nn['W1'] = npz['W1']
         nn['b1'] = npz['b1']
+        W1 = npz['W1']
+        b1 = npz['b1']
+        print(np.amax(W1))
+        print(np.amin(W1))
+        print(np.amax(b1))
+        print(np.amin(b1))
         return nn
 
     def visualize(self):
@@ -174,4 +179,4 @@ class SnakeNN:
 
 if __name__ == '__main__':
     snakeNN = SnakeNN()
-    snakeNN.train()
+    snakeNN.load()
