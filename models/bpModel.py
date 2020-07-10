@@ -5,8 +5,8 @@ import math
 from collections import Counter
 
 
-class SnakeNN:
-    def __init__(self, initial_games=1000, test_games=1000, goal_steps=2000, lr=1e-2, file='defModel.npz'):
+class BP:
+    def __init__(self, initial_games=1000, test_games=1000, goal_steps=2000, lr=1e-2, file='bpSave.npz'):
         self.initial_games = initial_games
         self.test_games = test_games
         self.goal_steps = goal_steps
@@ -138,7 +138,7 @@ class SnakeNN:
             model['b1'] -= self.lr * db1
             model['W2'] -= self.lr * dW2
             model['b2'] -= self.lr * db2
-        np.savez(self.file, W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
+        np.savez('saves/' + self.file, W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
         return model
 
     def predict(self, X, model):
@@ -184,6 +184,35 @@ class SnakeNN:
         print('Average score: ' + str(1.0 * sum(scores_arr) / len(scores_arr)))
         print(Counter(scores_arr))
 
+    def test_neat_model(self, model):
+        steps_arr = []
+        scores_arr = []
+        for _ in range(self.test_games):
+            steps = 0
+            game_mem = []
+            game = SnakeGame()
+            _, score, snake, food = game.start()
+            prev_obs = self.gen_obs(snake, food)
+            for _ in range(self.goal_steps):
+                preds = []
+                for action in range(-1, 2):
+                    preds.append(model.activate(np.append([action], prev_obs)))
+                action = np.argmax(np.array(preds))
+                game_action = self.get_game_action(snake, action - 1)
+                done, score, snake, food = game.step(game_action)
+                game_mem.append([prev_obs, action])
+                if done:
+                    break
+                else:
+                    prev_obs = self.gen_obs(snake, food)
+                    steps += 1
+            steps_arr.append(steps)
+            scores_arr.append(score)
+        print('Average steps: ' + str(1.0 * sum(steps_arr) / len(steps_arr)))
+        print(Counter(steps_arr))
+        print('Average score: ' + str(1.0 * sum(scores_arr) / len(scores_arr)))
+        print(Counter(scores_arr))
+
     def visualize_game(self, model):
         game = SnakeGame(gui=True)
         _, _, snake, food = game.start()
@@ -211,7 +240,7 @@ class SnakeNN:
         if file is None:
             file = self.file
         nn = self.model()
-        npz = np.load(file)
+        npz = np.load('../saves/' + file)
         nn['W1'] = npz['W1']
         nn['b1'] = npz['b1']
         nn['W2'] = npz['W2']
@@ -219,14 +248,14 @@ class SnakeNN:
         return nn
 
     def visualize(self):
-        nn = self.load('tfModel.npz')
+        nn = self.load('../saves/tfSave.npz')
         self.visualize_game(nn)
 
     def test(self):
-        nn = self.load('tfModel.npz')
+        nn = self.load('../saves/tfSave.npz')
         self.test_model(nn)
 
 
-# if __name__ == '__main__':
-#     snakeNN = SnakeNN()
-#     snakeNN.test()
+if __name__ == '__main__':
+    BP = BP()
+    BP.train()

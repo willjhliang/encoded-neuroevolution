@@ -4,7 +4,7 @@ import numpy as np
 from collections import Counter
 
 
-class SnakeNN:
+class BaseNN:
     def __init__(self, initial_games=100, test_games=10, goal_steps=100, lr=1e-2):
         self.initial_games = initial_games
         self.test_games = test_games
@@ -94,7 +94,7 @@ class SnakeNN:
 
             model['W1'] -= self.lr * dW1
             model['b1'] -= self.lr * db1
-        np.savez('baseModel.npz', W1=model['W1'], b1=model['b1'])
+        np.savez('../saves/baseSave.npz', W1=model['W1'], b1=model['b1'])
         return model
 
     def predict(self, X, model):
@@ -157,7 +157,7 @@ class SnakeNN:
 
     def load(self):
         nn = self.model()
-        npz = np.load('baseModel.npz')
+        npz = np.load('../saves/baseModel.npz')
         nn['W1'] = npz['W1']
         nn['b1'] = npz['b1']
         W1 = npz['W1']
@@ -178,5 +178,5 @@ class SnakeNN:
 
 
 if __name__ == '__main__':
-    snakeNN = SnakeNN()
-    snakeNN.load()
+    baseNN = BaseNN()
+    baseNN.load()

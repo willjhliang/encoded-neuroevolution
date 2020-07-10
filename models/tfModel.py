@@ -118,7 +118,7 @@ class SnakeNN:
         X = np.array([i[0] for i in training_data]).reshape(-1, 5)
         y = np.array([i[1] for i in training_data]).reshape(-1, 1)
         model.fit(X, y, epochs=3, shuffle=True)
-        model.save(self.tf_file)
+        model.save('../saves/' + self.tf_file)
         return model
 
     def test_model(self, model):
@@ -177,7 +177,7 @@ class SnakeNN:
 
     def load(self):
         nn = self.model()
-        nn.load_weights(self.tf_file)
+        nn.load_weights('../saves/' + self.tf_file)
         return nn
 
     def visualize(self):
@@ -201,7 +201,7 @@ class SnakeNN:
         print(layers[0][1].shape)
         layers[1][1] = np.expand_dims(layers[1][1], axis=-1)
         print(layers[1][1].shape)
-        np.savez(self.file, W1=layers[0][0], b1=layers[0][1], W2=layers[1][0], b2=layers[1][1])
+        np.savez('../saves/' + self.file, W1=layers[0][0], b1=layers[0][1], W2=layers[1][0], b2=layers[1][1])
 
 
 if __name__ == '__main__':
