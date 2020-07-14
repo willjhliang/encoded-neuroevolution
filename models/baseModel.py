@@ -4,7 +4,7 @@ import numpy as np
 from collections import Counter
 
 
-class BaseNN:
+class Base:
     def __init__(self, initial_games=100, test_games=10, goal_steps=100, lr=1e-2):
         self.initial_games = initial_games
         self.test_games = test_games
@@ -14,6 +14,10 @@ class BaseNN:
                              (0, 1): 1,
                              (1, 0): 2,
                              (0, -1): 3}
+
+        self.training_data = self.initial_population()
+        self.X = np.array([i[0] for i in self.training_data]).T
+        self.y = np.array([i[1] for i in self.training_data]).T
 
     def initial_population(self):
         training_data = []
@@ -71,43 +75,19 @@ class BaseNN:
         b1 = np.zeros(shape=(1, 1))
         return {'W1': W1, 'b1': b1}
 
-    def forward_prop(self, X, y, model):
+    def forward_prop(self, model, X, y=None):
         W1 = model['W1']
         b1 = model['b1']
 
         Z1 = np.dot(W1, X) + b1
         A1 = Z1
-        J = 1 / 2 * np.mean((A1 - y) ** 2)
+        if y is None:
+            J = -1
+        else:
+            J = 1 / 2 * np.mean((A1 - y) ** 2)
         return J, Z1, A1
 
-    def train_model(self, training_data, model):
-        X = np.array([i[0] for i in training_data]).T
-        y = np.array([i[1] for i in training_data]).T
-        m = X.shape[1]
-
-        for _ in range(100):
-            J, Z1, A1 = self.forward_prop(X, y, model)
-
-            dZ1 = (A1 - y)
-            dW1 = (1 / m) * np.dot(dZ1, X.T)
-            db1 = (1 / m) * np.sum(dZ1, axis=1, keepdims=True)
-
-            model['W1'] -= self.lr * dW1
-            model['b1'] -= self.lr * db1
-        np.savez('../saves/baseSave.npz', W1=model['W1'], b1=model['b1'])
-        return model
-
-    def predict(self, X, model):
-        W1 = model['W1']
-        b1 = model['b1']
-
-        X = np.expand_dims(X, axis=-1)
-
-        Z1 = np.dot(W1, X) + b1
-        A1 = Z1
-        return A1
-
-    def test_model(self, model):
+    def test(self, model):
         steps_arr = []
         for _ in range(self.test_games):
             steps = 0
@@ -118,7 +98,7 @@ class BaseNN:
             for _ in range(self.goal_steps):
                 preds = []
                 for action in range(-1, 2):
-                    preds.append(self.predict(np.append([action], prev_obs), model))
+                    preds.append(self.forward_prop(model, np.append([action], prev_obs))[-1])
                 action = np.argmax(np.array(preds))
                 game_action = self.get_game_action(snake, action - 1)
                 done, _, snake, _ = game.step(game_action)
@@ -132,14 +112,14 @@ class BaseNN:
         print('Average steps: ' + str(1.0 * sum(steps_arr) / len(steps_arr)))
         print(Counter(steps_arr))
 
-    def visualize_game(self, model):
+    def visualize(self, model):
         game = SnakeGame(gui=True)
         _, _, snake, food = game.start()
         prev_obs = self.gen_obs(snake, food)
         for _ in range(self.goal_steps):
             preds = []
             for action in range(-1, 2):
-                preds.append(self.predict(np.append([action], prev_obs), model))
+                preds.append(self.forward_prop(model, np.append([action], prev_obs))[-1])
             action = np.argmax(np.array(preds))
             game_action = self.get_game_action(snake, action - 1)
             done, _, snake, food = game.step(game_action)
@@ -149,11 +129,20 @@ class BaseNN:
                 prev_obs = self.gen_obs(snake, food)
         game.end_game()
 
-    def train(self):
-        training_data = self.initial_population()
-        nn = self.model()
-        nn = self.train_model(training_data, nn)
-        self.test_model(nn)
+    def run(self):
+        model = self.model()
+        m = self.X.shape[1]
+        for _ in range(100):
+            J, Z1, A1 = self.forward_prop(model, self.X, self.y)
+
+            dZ1 = (A1 - self.y)
+            dW1 = (1 / m) * np.dot(dZ1, self.X.T)
+            db1 = (1 / m) * np.sum(dZ1, axis=1, keepdims=True)
+
+            model['W1'] -= self.lr * dW1
+            model['b1'] -= self.lr * db1
+        np.savez('../saves/baseSave.npz', W1=model['W1'], b1=model['b1'])
+        self.test_model(model)
 
     def load(self):
         nn = self.model()
@@ -168,15 +157,7 @@ class BaseNN:
         print(np.amin(b1))
         return nn
 
-    def visualize(self):
-        nn = self.load()
-        self.visualize_game(nn)
-
-    def test(self):
-        nn = self.load()
-        self.test_model(nn)
-
 
 if __name__ == '__main__':
-    baseNN = BaseNN()
-    baseNN.load()
+    base = Base()
+    base.run()

@@ -1,9 +1,10 @@
-from bpModel import BP
+from scoreModel import ScoreModel
+from actionModel import ActionModel
 import numpy as np
 
 
 class EGAAR:
-    def __init__(self, iterations=100, pop_size=100, mut_prob=0.1, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, ar_N=2):
+    def __init__(self, iterations=100, pop_size=100, mut_prob=0.7, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, ar_N=2):
         self.iterations = iterations
         self.pop_size = pop_size
         self.mut_prob = mut_prob
@@ -12,17 +13,26 @@ class EGAAR:
         self.par_ratio = par_ratio
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
+
+        self.nn = ActionModel()
+        self.ln1, self.ln2, self.ln3 = self.nn.model_dims()
+        self.training_data = self.nn.training_data
+        self.X = np.array([i[0] for i in self.training_data]).T
+        self.y = np.array([i[1] for i in self.training_data]).T
+
         self.ar_N = ar_N
-        self.clip_lo = -1
-        self.clip_hi = 0
+        self.compress_len = self.compress_decoder(self.decoder()).size
+
+        self.clip_lo = -1.1
+        self.clip_hi = 1.1
 
     def decoder(self):
         ret = {}
         for i in range(self.ar_N):
             ret['a1' + str(i)] = np.random.rand(1) * 2 - 1
-            ret['c1' + str(i)] = np.zeros(1)
+            ret['c1' + str(i)] = np.random.rand(1) * 2 - 1
             ret['a2' + str(i)] = np.random.rand(1) * 2 - 1
-            ret['c2' + str(i)] = np.zeros(1)
+            ret['c2' + str(i)] = np.random.rand(1) * 2 - 1
         return ret
 
     def compress_decoder(self, decoder):
@@ -54,10 +64,10 @@ class EGAAR:
     def decode(self, decoder):
         decoder = self.expand_decoder(decoder)
 
-        W1 = np.random.randn(25, 5) * 0.01
-        b1 = np.zeros(shape=(25, 1))
-        W2 = np.random.randn(1, 25) * 0.01
-        b2 = np.zeros(shape=(1, 1))
+        W1 = np.zeros(shape=(self.ln2, self.ln1))
+        b1 = np.zeros(shape=(self.ln2, 1))
+        W2 = np.zeros(shape=(self.ln3, self.ln2))
+        b2 = np.zeros(shape=(self.ln3, 1))
 
         for i in range(self.ar_N):
             a1 = decoder['a1' + str(i)]
@@ -65,17 +75,17 @@ class EGAAR:
             a2 = decoder['a2' + str(i)]
             c2 = decoder['c2' + str(i)]
 
-            L1 = np.zeros(shape=(25, 5 + 1)).flatten()
-            L2 = np.zeros(shape=(1, 25 + 1)).flatten()
+            L1 = np.zeros(shape=(self.ln2, self.ln1 + 1)).flatten()
+            L2 = np.zeros(shape=(self.ln3, self.ln2 + 1)).flatten()
             L1[0] = c1
             for i in range(1, L1.shape[0]):
-                L1[i] = L1[i - 1] * a1 + c1
+                L1[i] = L1[i - 1] * a1
             L2[0] = c2
             for i in range(1, L2.shape[0]):
-                L2[i] = L2[i - 1] * a2 + c2
+                L2[i] = L2[i - 1] * a2
 
-            L1 = L1.reshape(25, 5 + 1)
-            L2 = L2.reshape((1, 25 + 1))
+            L1 = L1.reshape(self.ln2, self.ln1 + 1)
+            L2 = L2.reshape((self.ln3, self.ln2 + 1))
 
             W1 += L1[:, :-1]
             b1 += np.expand_dims(L1[:, -1], axis=-1)
@@ -84,8 +94,8 @@ class EGAAR:
         return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
 
     def clip(self, x):
-        # x[x < self.clip_lo] = self.clip_lo
-        # x[x > self.clip_hi] = self.clip_hi
+        x[x < self.clip_lo] = self.clip_lo
+        x[x > self.clip_hi] = self.clip_hi
         return x
 
     def cross(self, x, y):
@@ -108,12 +118,6 @@ class EGAAR:
         return c
 
     def run(self):
-        nn = BP()
-        self.compress_len = self.compress_decoder(self.decoder()).size
-        self.training_data = nn.initial_population()
-        self.X = np.array([i[0] for i in self.training_data]).T
-        self.y = np.array([i[1] for i in self.training_data]).T
-
         pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
         for p in range(self.pop_size):
             pop[p] = self.compress_decoder(self.decoder())
@@ -122,13 +126,13 @@ class EGAAR:
         for t in range(1, self.iterations + 1):
             fitness = np.zeros(self.pop_size)
             for p in range(self.pop_size):
-                J = nn.forward_prop(self.X, self.y, self.decode(pop[p]))[0]
+                J = self.nn.forward_prop(self.decode(pop[p]), self.X, self.y)[0]
                 fitness[p] = J
             pop = pop[np.argsort(fitness)]
             fitness = fitness[np.argsort(fitness)]
 
-            J = nn.forward_prop(self.X, self.y, self.decode(pop[0]))[0]
-            if t % 10 == 0:
+            J = self.nn.forward_prop(self.decode(pop[0]), self.X, self.y)[0]
+            if t % 25 == 0:
                 print('Iter ' + str(t).zfill(3) + ': ' + str(J))
 
             prob = np.array(fitness, copy=True)
@@ -160,7 +164,7 @@ class EGAAR:
                 pop[i] = self.mut(pop[i])
                 pop[i + 1] = self.mut(pop[i + 1])
         model = self.decode(pop[0])
-        nn.test_model(model)
+        self.nn.test(model)
         np.savez('../saves/egaARSave.npz', W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
 
 

@@ -1,11 +1,14 @@
-from bpModel import BP
+from scoreModel import ScoreModel
+from actionModel import ActionModel
+from simulationModel import SimulationModel
+
 from random import randint
 import numpy as np
 from collections import Counter
 
 
 class EGATD:
-    def __init__(self, iterations=100, pop_size=100, mut_prob=0.1, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=3):
+    def __init__(self, iterations=500, pop_size=100, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=2):
         self.iterations = iterations
         self.pop_size = pop_size
         self.mut_prob = mut_prob
@@ -14,16 +17,28 @@ class EGATD:
         self.par_ratio = par_ratio
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
+
+        self.problem = SimulationModel()
+        self.ln1, self.ln2, self.ln3 = self.problem.model_dims()
+        # self.training_data = self.problem.training_data
+        # self.X = np.array([i[0] for i in self.training_data]).T
+        # self.y = np.array([i[1] for i in self.training_data]).T
+
         self.td_N = td_N
+        self.td_size1 = 3
+        self.td_size2 = 5
+        self.td_size3 = 11
+        self.compress_len = self.compress_decoder(self.decoder()).size
+
         self.clip_lo = -1
         self.clip_hi = 0
 
     def decoder(self):
         ret = {}
         for i in range(self.td_N):
-            ret['V1' + str(i)] = np.random.randn(4, 1) * 0.01
-            ret['V2' + str(i)] = np.random.randn(4, 1) * 0.01
-            ret['V3' + str(i)] = np.random.randn(11, 1) * 0.01
+            ret['V1' + str(i)] = np.random.randn(self.td_size1, 1) * 0.01
+            ret['V2' + str(i)] = np.random.randn(self.td_size2, 1) * 0.01
+            ret['V3' + str(i)] = np.random.randn(self.td_size3, 1) * 0.01
             ret['C' + str(i)] = np.array([1]).reshape(1, 1)
         return ret
 
@@ -43,23 +58,23 @@ class EGATD:
     def expand_decoder(self, decoder):
         ret = {}
         for i in range(self.td_N):
-            V1, decoder = np.split(decoder, [4 * 1])
-            V2, decoder = np.split(decoder, [4 * 1])
-            V3, decoder = np.split(decoder, [11 * 1])
+            V1, decoder = np.split(decoder, [self.td_size1 * 1])
+            V2, decoder = np.split(decoder, [self.td_size2 * 1])
+            V3, decoder = np.split(decoder, [self.td_size3 * 1])
             C, decoder = np.split(decoder, [1 * 1])
-            ret['V1' + str(i)] = V1.reshape(4, 1)
-            ret['V2' + str(i)] = V2.reshape(4, 1)
-            ret['V3' + str(i)] = V3.reshape(11, 1)
+            ret['V1' + str(i)] = V1.reshape(self.td_size1, 1)
+            ret['V2' + str(i)] = V2.reshape(self.td_size2, 1)
+            ret['V3' + str(i)] = V3.reshape(self.td_size3, 1)
             ret['C' + str(i)] = C.reshape(1, 1)
         return ret
 
     def decode(self, decoder):
         decoder = self.expand_decoder(decoder)
 
-        W1 = np.random.randn(25, 5) * 0.01
-        b1 = np.zeros(shape=(25, 1))
-        W2 = np.random.randn(1, 25) * 0.01
-        b2 = np.zeros(shape=(1, 1))
+        W1 = np.zeros(shape=(self.ln2, self.ln1))
+        b1 = np.zeros(shape=(self.ln2, 1))
+        W2 = np.zeros(shape=(self.ln3, self.ln2))
+        b2 = np.zeros(shape=(self.ln3, 1))
 
         for i in range(self.td_N):
             V1 = decoder['V1' + str(i)]
@@ -70,10 +85,12 @@ class EGATD:
             T = np.dot(V1, V2.T)
             T = T[..., None] * V3[:, 0]
             T = T * C
+            T = T.flatten()
 
-            L1, L2 = np.split(T.flatten(), [25 * (5 + 1)])
-            L1 = L1.reshape(25, 5 + 1)
-            L2 = L2.reshape((1, 25 + 1))
+            L1, T = np.split(T, [self.ln2 * (self.ln1 + 1)])
+            L2, T = np.split(T, [self.ln3 * (self.ln2 + 1)])
+            L1 = L1.reshape(self.ln2, self.ln1 + 1)
+            L2 = L2.reshape((self.ln3, self.ln2 + 1))
 
             W1 += L1[:, :-1]
             b1 += np.expand_dims(L1[:, -1], axis=-1)
@@ -106,12 +123,6 @@ class EGATD:
         return c
 
     def run(self):
-        nn = BP()
-        self.compress_len = self.compress_decoder(self.decoder()).size
-        self.training_data = nn.initial_population()
-        self.X = np.array([i[0] for i in self.training_data]).T
-        self.y = np.array([i[1] for i in self.training_data]).T
-
         pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
         for p in range(self.pop_size):
             pop[p] = self.compress_decoder(self.decoder())
@@ -120,16 +131,17 @@ class EGATD:
         for t in range(1, self.iterations + 1):
             fitness = np.zeros(self.pop_size)
             for p in range(self.pop_size):
-                J = nn.forward_prop(self.X, self.y, self.decode(pop[p]))[0]
+                J = self.problem.test(self.decode(pop[p]), 3)[0]
                 fitness[p] = J
-            pop = pop[np.argsort(fitness)]
-            fitness = fitness[np.argsort(fitness)]
+            k = -1 if isinstance(self.problem, SimulationModel) else 1  # Maximize metric in SimulationModel, minimize error otherwise
+            pop = pop[np.argsort(k * fitness)]
+            fitness = fitness[np.argsort(k * fitness)]
 
-            J = nn.forward_prop(self.X, self.y, self.decode(pop[0]))[0]
-            if t % 10 == 0:
-                print('Iter ' + str(t).zfill(3) + ': ' + str(J))
+            J, steps, score = self.problem.test(self.decode(pop[0]), 3)
+            if t % 25 == 0:
+                print('Iter ' + str(t).zfill(3) + ': ' + str(J) + ' ' + str(steps) + ' ' + str(score))
 
-            prob = np.array(fitness, copy=True)
+            prob = np.array(fitness, copy=True) - min(0, np.amin(fitness))  # prevent negatives
             prob = prob / np.sum(prob)
             cum_prob = np.cumsum(prob)
             par = np.array([np.zeros(self.compress_len)] * self.par_size)
@@ -158,7 +170,7 @@ class EGATD:
                 pop[i] = self.mut(pop[i])
                 pop[i + 1] = self.mut(pop[i + 1])
         model = self.decode(pop[0])
-        nn.test_model(model)
+        self.problem.test(model)
         np.savez('../saves/egaTDSave.npz', W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
 
 

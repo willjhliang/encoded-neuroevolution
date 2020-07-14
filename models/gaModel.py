@@ -1,4 +1,4 @@
-from bpModel import BP
+from scoreModel import ScoreModel
 from random import randint
 import numpy as np
 from collections import Counter
@@ -14,6 +14,13 @@ class GA:
         self.par_ratio = par_ratio
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
+
+        self.nn = ScoreModel()
+        self.training_data = self.nn.initial_population()
+        self.X = np.array([i[0] for i in self.training_data]).T
+        self.y = np.array([i[1] for i in self.training_data]).T
+        self.compress_len = self.compress(self.nn.model()).size
+
         self.clip_lo = -1
         self.clip_hi = 0
 
@@ -76,26 +83,20 @@ class GA:
         return c
 
     def run(self):
-        nn = BP()
-        self.compress_len = self.compress(nn.model()).size
-        self.training_data = nn.initial_population()
-        self.X = np.array([i[0] for i in self.training_data]).T
-        self.y = np.array([i[1] for i in self.training_data]).T
-
         pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
         for p in range(self.pop_size):
-            pop[p] = self.compress(nn.model())
+            pop[p] = self.compress(self.nn.model())
             pop[p] = self.clip(pop[p])
 
         for t in range(1, self.iterations + 1):
             fitness = np.zeros(self.pop_size)
             for p in range(self.pop_size):
-                J = nn.forward_prop(self.X, self.y, self.expand(pop[p]))[0]
+                J = self.nn.forward_prop(self.X, self.y, self.expand(pop[p]))[0]
                 fitness[p] = J
             pop = pop[np.argsort(fitness)]
             fitness = fitness[np.argsort(fitness)]
 
-            J = nn.forward_prop(self.X, self.y, self.expand(pop[0]))[0]
+            J = self.nn.forward_prop(self.X, self.y, self.expand(pop[0]))[0]
             if t % 10 == 0:
                 print('Iter ' + str(t).zfill(3) + ': ' + str(J))
 
@@ -128,7 +129,7 @@ class GA:
                 pop[i] = self.mut(pop[i])
                 pop[i + 1] = self.mut(pop[i + 1])
         model = self.expand(pop[0])
-        nn.test_model(model)
+        self.nn.test_model(model)
         np.savez('../saves/gaSave.npz', W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
 
 

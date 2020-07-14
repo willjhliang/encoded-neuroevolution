@@ -16,7 +16,7 @@ class MinMax(tf.keras.constraints.Constraint):
         return tf.clip_by_value(w, self.min_val, self.max_val)
 
 
-class SnakeNN:
+class TF:
     def __init__(self, initial_games=10000, test_games=10, goal_steps=2000, lr=1e-2, tf_file='tfModel.h5', file='tfModel.npz'):
         self.initial_games = initial_games
         self.test_games = test_games
@@ -177,7 +177,7 @@ class SnakeNN:
 
     def load(self):
         nn = self.model()
-        nn.load_weights('../saves/' + self.tf_file)
+        nn.load_weights('../saves' + self.tf_file)
         return nn
 
     def visualize(self):
@@ -205,6 +205,6 @@ class SnakeNN:
 
 
 if __name__ == '__main__':
-    snakeNN = SnakeNN()
+    snakeNN = TF()
     snakeNN.train()
     snakeNN.save()

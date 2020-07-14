@@ -1,4 +1,4 @@
-from bpModel import BP
+from scoreModel import ScoreModel
 from random import randint
 import numpy as np
 from collections import Counter
@@ -14,6 +14,15 @@ class EGANN:
         self.par_ratio = par_ratio
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
+
+        nn = ScoreModel()
+        self.ln1, self.ln2, self.ln3 = self.nn.model_dims()
+        self.training_data = nn.initial_population()
+        self.X = np.array([i[0] for i in self.training_data]).T
+        self.y = np.array([i[1] for i in self.training_data]).T
+
+        self.compress_len = self.compress_decoder(self.decoder()).size
+
         self.clip_lo = -1
         self.clip_hi = 0
 
@@ -61,8 +70,8 @@ class EGANN:
     def decode(self, decoder):
         decoder = self.expand_decoder(decoder)
 
-        L1 = np.zeros((25, 5 + 1))
-        L2 = np.zeros((1, 25 + 1))
+        L1 = np.zeros((self.ln2, self.ln1 + 1))
+        L2 = np.zeros((self.ln3, self.ln2 + 1))
         for i in range(L1.shape[0]):
             for j in range(L1.shape[1]):
                 X = np.array([i, j, 0])
@@ -102,12 +111,6 @@ class EGANN:
         return c
 
     def run(self):
-        nn = BP()
-        # self.compress_len = self.compress(nn.model()).size
-        self.compress_len = self.compress_decoder(self.decoder()).size
-        self.training_data = nn.initial_population()
-        self.X = np.array([i[0] for i in self.training_data]).T
-        self.y = np.array([i[1] for i in self.training_data]).T
 
         pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
         for p in range(self.pop_size):
@@ -117,12 +120,12 @@ class EGANN:
         for t in range(1, self.iterations + 1):
             fitness = np.zeros(self.pop_size)
             for p in range(self.pop_size):
-                J = nn.forward_prop(self.X, self.y, self.decode(pop[p]))[0]
+                J = self.nn.forward_prop(self.X, self.y, self.decode(pop[p]))[0]
                 fitness[p] = J
             pop = pop[np.argsort(fitness)]
             fitness = fitness[np.argsort(fitness)]
 
-            J = nn.forward_prop(self.X, self.y, self.decode(pop[0]))[0]
+            J = self.nn.forward_prop(self.X, self.y, self.decode(pop[0]))[0]
             if t % 10 == 0:
                 print('Iter ' + str(t).zfill(3) + ': ' + str(J))
 
@@ -155,10 +158,10 @@ class EGANN:
                 pop[i] = self.mut(pop[i])
                 pop[i + 1] = self.mut(pop[i + 1])
         model = self.decode(pop[0])
-        nn.test_model(model)
+        self.nn.test_model(model)
         np.savez('../saves/egaNNSave.npz', W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
 
 
 if __name__ == '__main__':
-    GA = EGANN()
-    GA.run()
+    egaNN = EGANN()
+    egaNN.run()

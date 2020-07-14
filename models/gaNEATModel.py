@@ -1,4 +1,4 @@
-from bpModel import BP
+from scoreModel import ScoreModel
 from random import randint
 import numpy as np
 from collections import Counter
@@ -34,7 +34,7 @@ class GANEAT:
             genome.fitness = 1 - genome.fitness
 
     def run(self):
-        nn = BP()
+        nn = ScoreModel()
         self.training_data = nn.initial_population()
         self.X = np.array([i[0] for i in self.training_data]).T
         self.y = np.array([i[1] for i in self.training_data]).T
@@ -52,7 +52,7 @@ class GANEAT:
         nn.test_neat_model(model)
 
     def test(self, file):
-        nn = BP()
+        nn = ScoreModel()
         config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                              neat.DefaultSpeciesSet, neat.DefaultStagnation,
                              '../saves/neatConfigs/gaNEATConfig.txt')
