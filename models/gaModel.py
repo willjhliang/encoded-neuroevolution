@@ -1,11 +1,13 @@
-from scoreModel import ScoreModel
-from random import randint
+from ..problems.scoreProblem import ScoreProb
+from ..problems.actionProblem import ActionProb
+from ..problems.simulationProblem import SimulationProb
+
 import numpy as np
-from collections import Counter
 
 
 class GA:
-    def __init__(self, iterations=100, pop_size=100, mut_prob=0.2, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3):
+    def __init__(self, problem, iterations=100, pop_size=100, mut_prob=0.2,
+                 elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, **kwargs):
         self.iterations = iterations
         self.pop_size = pop_size
         self.mut_prob = mut_prob
@@ -15,11 +17,14 @@ class GA:
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
 
-        self.nn = ScoreModel()
-        self.training_data = self.nn.initial_population()
-        self.X = np.array([i[0] for i in self.training_data]).T
-        self.y = np.array([i[1] for i in self.training_data]).T
-        self.compress_len = self.compress(self.nn.model()).size
+        if problem == 'Score':
+            self.problem = ScoreProb()
+        if problem == 'Action':
+            self.problem = ActionProb()
+        if problem == 'Simulation':
+            self.problem = SimulationProb(kwargs['p'], kwargs['c'])
+        self.ln1, self.ln2, self.ln3 = self.problem.model_dims()
+        self.compress_len = self.compress(self.problem.model()).size
 
         self.clip_lo = -1
         self.clip_hi = 0
@@ -36,11 +41,11 @@ class GA:
         b1 = model['b1']
         W2 = model['W2']
         b2 = model['b2']
-
         ret = W1.flatten()
         ret = np.concatenate((ret, b1.flatten()))
         ret = np.concatenate((ret, W2.flatten()))
         ret = np.concatenate((ret, b2.flatten()))
+
         return ret
 
     def expand(self, arr):
@@ -49,18 +54,20 @@ class GA:
         # b1 = b1.reshape(1, 1)
         # return {'W1': W1, 'b1': b1}
 
-        W1, arr = np.split(arr, [25 * 5])
-        b1, arr = np.split(arr, [25])
-        W2, b2 = np.split(arr, [25 * 1])
-        W1 = W1.reshape(25, 5)
-        b1 = b1.reshape(25, 1)
-        W2 = W2.reshape(1, 25)
-        b2 = b2.reshape(1, 1)
+        W1, arr = np.split(arr, [self.ln2 * self.ln1])
+        b1, arr = np.split(arr, [self.ln2])
+        W2, b2 = np.split(arr, [self.ln3 * self.ln2])
+        W1 = W1.reshape(self.ln2, self.ln1)
+        b1 = b1.reshape(self.ln2, 1)
+        W2 = W2.reshape(self.ln3, self.ln2)
+        b2 = b2.reshape(self.ln3, 1)
+
         return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
 
     def clip(self, x):
-        x[x < self.clip_lo] = self.clip_lo
-        x[x > self.clip_hi] = self.clip_hi
+        # x[x < self.clip_lo] = self.clip_lo
+        # x[x > self.clip_hi] = self.clip_hi
+
         return x
 
     def cross(self, x, y):
@@ -78,25 +85,24 @@ class GA:
         for i in range(self.compress_len):
             if np.random.random() < self.mut_prob:
                 c[i] += np.random.normal(scale=0.1)
-                # c[i] = np.random.uniform(low=-0.05, high=0.8)
         c = self.clip(c)
         return c
 
     def run(self):
         pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
         for p in range(self.pop_size):
-            pop[p] = self.compress(self.nn.model())
+            pop[p] = self.compress(self.problem.model())
             pop[p] = self.clip(pop[p])
 
         for t in range(1, self.iterations + 1):
             fitness = np.zeros(self.pop_size)
             for p in range(self.pop_size):
-                J = self.nn.forward_prop(self.X, self.y, self.expand(pop[p]))[0]
+                J = self.problem.test(self.expand(pop[p]))[0]
                 fitness[p] = J
             pop = pop[np.argsort(fitness)]
             fitness = fitness[np.argsort(fitness)]
 
-            J = self.nn.forward_prop(self.X, self.y, self.expand(pop[0]))[0]
+            J = self.problem.test(self.expand(pop[0]))[0]
             if t % 10 == 0:
                 print('Iter ' + str(t).zfill(3) + ': ' + str(J))
 
@@ -129,7 +135,11 @@ class GA:
                 pop[i] = self.mut(pop[i])
                 pop[i + 1] = self.mut(pop[i + 1])
         model = self.expand(pop[0])
-        self.nn.test_model(model)
+        steps, score = self.problem.test(model, 1000)
+        print('==================================================')
+        print('Results:   ' + str('{:.2f}'.format(steps)).zfill(7) + '   ' +
+              str('{:.2f}'.format(score)).zfill(6))
+        print('==================================================')
         np.savez('../saves/gaSave.npz', W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
 
 

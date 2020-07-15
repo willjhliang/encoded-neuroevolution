@@ -1,39 +1,12 @@
-from egaARModel import EGAAR
-from egaTDModel import EGATD
-from egaARTDModel import EGAARTD
-from egaTDRandModel import EGATDRand
+from egaModel import EGA
 
-# GA = EGAAR(iterations=500, pop_size=100, mut_prob=0.1, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, ar_N=2)
-# GA.run()
-# GA = EGAAR(iterations=500, pop_size=100, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, ar_N=2)
-# GA.run()
-# GA = EGAAR(iterations=500, pop_size=100, mut_prob=0.7, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, ar_N=2)
-# GA.run()
-
-# GA = EGATD(iterations=500, pop_size=100, mut_prob=0.1, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=2)
-# GA.run()
-# GA = EGATD(iterations=500, pop_size=100, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=2)
-# GA.run()
-# GA = EGATD(iterations=500, pop_size=100, mut_prob=0.7, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=2)
-# GA.run()
-
-# GA = EGAARTD(iterations=500, pop_size=100, mut_prob=0.1, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, ar_N=1, td_N=1)
-# GA.run()
-# GA = EGAARTD(iterations=500, pop_size=100, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, ar_N=1, td_N=1)
-# GA.run()
-# GA = EGAARTD(iterations=500, pop_size=100, mut_prob=0.7, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, ar_N=1, td_N=1)
-# GA.run()
-
-# GA = EGATD(iterations=500, pop_size=100, mut_prob=0.1, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=3)
-# GA.run()
-# GA = EGATD(iterations=500, pop_size=100, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=3)
-# GA.run()
-# GA = EGATD(iterations=500, pop_size=100, mut_prob=0.7, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=3)
-# GA.run()
-
-GA = EGATDRand(iterations=500, pop_size=100, mut_prob=0.1, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=2, rand_N=3)
-GA.run()
-GA = EGATDRand(iterations=500, pop_size=100, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=2, rand_N=3)
-GA.run()
-GA = EGATDRand(iterations=500, pop_size=100, mut_prob=0.7, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, td_N=2, rand_N=3)
-GA.run()
+# print('AR(2) p=0.1')
+# EGA('Simulation', 2, 0, 0, 0, p=0.1, c=0.9).run()
+# print('TD(2) p=0.01')
+# EGA('Simulation', 0, 2, 0, 0, p=0.01, c=0.9).run()
+print('TD(2) p=0.1')
+EGA('Simulation', 0, 2, 0, 0, p=0.1, c=0.9).run()
+# print('TD(2) p=1')
+# EGA('Simulation', 0, 2, 0, 0, p=1, c=0.9).run()
+# print('TD(2) p=10')
+# EGA('Simulation', 0, 2, 0, 0, p=10, c=0.9).run()
