@@ -71,12 +71,12 @@ class BP:
         print(layers[0][1].shape)
         layers[1][1] = np.expand_dims(layers[1][1], axis=-1)
         print(layers[1][1].shape)
-        np.savez('../saves/bpSave.npz', W1=layers[0][0], b1=layers[0][1], W2=layers[1][0], b2=layers[1][1])
+        np.savez('saves/bpSave.npz', W1=layers[0][0], b1=layers[0][1], W2=layers[1][0], b2=layers[1][1])
 
     def run(self):
         model = self.model()
         model.fit(self.problem.X.T, self.problem.y, epochs=3, shuffle=True)
-        model.save('../saves/bpSave.h5')
+        model.save('saves/bpSave.h5')
         steps, score = self.problem.test(model, 10)
         print('==================================================')
         print('Results:   ' + str('{:.2f}'.format(steps)).zfill(7) + '   ' +
@@ -85,14 +85,9 @@ class BP:
 
     def test(self):
         model = self.model()
-        model.load_weights('../saves/bpSave.h5')
+        model.load_weights('saves/bpSave.h5')
         steps, score = self.problem.test(model, 10)
         print('==================================================')
         print('Results:   ' + str('{:.2f}'.format(steps)).zfill(7) + '   ' +
               str('{:.2f}'.format(score)).zfill(6))
         print('==================================================')
-
-
-if __name__ == '__main__':
-    bp = BP('Score')
-    bp.test()

@@ -1,4 +1,3 @@
-from snakeGame import SnakeGame
 import numpy as np
 from random import randint
 import math
@@ -13,14 +12,34 @@ class Helper:
                              (1, 0): 2,
                              (0, -1): 3}
 
-    def gen_obs(self, snake, food):
-        snake_dir = self.get_snake_dir_vec(snake)
-        food_dir = self.get_food_dir_vec(snake, food)
-        barr_left = self.is_dir_blocked(snake, self.turn_vec_left(snake_dir))
-        barr_front = self.is_dir_blocked(snake, snake_dir)
-        barr_right = self.is_dir_blocked(snake, self.turn_vec_right(snake_dir))
-        angle = self.get_angle(snake_dir, food_dir)
-        return np.array([int(barr_left), int(barr_front), int(barr_right), angle])
+    def gen_obs(self, snake, food, width, height):
+        board = np.zeros((width, height))
+        for i in snake:
+            board[i[0] - 1, i[1] - 1] = 1
+        board[food[0] - 1, food[1] - 1] = 1
+
+        ret = []
+
+        k = 1 << np.arange(width, dtype=np.uint32)[::-1]
+        for i in range(height):
+            ret.append(board[:, i].dot(k))
+            if i == food[0] - 1:
+                ret[-1] *= -1
+        k = 1 << np.arange(height, dtype=np.uint32)[::-1]
+        for i in range(width):
+            ret.append(board[i, :].dot(k))
+            if i == food[1] - 1:
+                ret[-1] *= -1
+        ret = np.array(ret)
+        return ret
+
+        # snake_dir = self.get_snake_dir_vec(snake)
+        # food_dir = self.get_food_dir_vec(snake, food)
+        # barr_left = self.is_dir_blocked(snake, self.turn_vec_left(snake_dir))
+        # barr_front = self.is_dir_blocked(snake, snake_dir)
+        # barr_right = self.is_dir_blocked(snake, self.turn_vec_right(snake_dir))
+        # angle = self.get_angle(snake_dir, food_dir)
+        # return np.array([int(barr_left), int(barr_front), int(barr_right), angle])
 
     def gen_action(self, snake):
         action = randint(0, 2) - 1
@@ -109,3 +128,9 @@ class Helper:
                 J = 1 / 2 * np.mean((A2 - y) ** 2)
 
             return J, A2
+
+
+if __name__ == '__main__':
+    helper = Helper()
+    snake = np.array([[1, 1], [2, 1], [3, 1], [3, 2]])
+    print(helper.gen_obs(snake, [1, 1], 20, 20))

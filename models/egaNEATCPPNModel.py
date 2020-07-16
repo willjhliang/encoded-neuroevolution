@@ -29,7 +29,7 @@ class EGANEATCPPN:
             k = 'egaCPPNConfig.txt'
         self.config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                   neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                                  '../saves/neatConfigs/' + k)
+                                  'saves/neatConfigs/' + k)
 
     def model(self, net):
         L1 = np.zeros((self.ln2, self.ln1 + 1))
@@ -61,7 +61,7 @@ class EGANEATCPPN:
         pop = neat.Population(self.config)
         pop.add_reporter(neat.StdOutReporter(True))
         pop.add_reporter(neat.StatisticsReporter())
-        pop.add_reporter(neat.Checkpointer(5, filename_prefix='../saves/neatCkpts/ega' + self.solver_type + 'Save-'))
+        pop.add_reporter(neat.Checkpointer(5, filename_prefix='saves/neatCkpts/ega' + self.solver_type + 'Save-'))
 
         winner = pop.run(self.evaluate, self.iterations)
         net = neat.nn.FeedForwardNetwork.create(winner, self.config)
@@ -72,7 +72,7 @@ class EGANEATCPPN:
         print('==================================================')
 
     def test(self, file):
-        pop = neat.Checkpointer.restore_checkpoint('../saves/neatCkpts/' + file)
+        pop = neat.Checkpointer.restore_checkpoint('saves/neatCkpts/' + file)
         winner = pop.run(self.evaluate, 1)
         net = neat.nn.FeedForwardNetwork.create(winner, self.config)
         steps, score = self.problem.test(self.model(net), 1000)
@@ -80,8 +80,3 @@ class EGANEATCPPN:
         print('Results:   ' + str('{:.2f}'.format(steps)).zfill(7) + '   ' +
               str('{:.2f}'.format(score)).zfill(6))
         print('==================================================')
-
-
-if __name__ == '__main__':
-    GA = EGANEATCPPN('Score', 'CPPN')
-    GA.run()

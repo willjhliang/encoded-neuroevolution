@@ -18,8 +18,8 @@ class SnakeGame:
         return self.generate_observations()
 
     def snake_init(self):
-        x = randint(5, self.board["width"] - 5)
-        y = randint(5, self.board["height"] - 5)
+        x = randint(5, self.board['width'] - 5)
+        y = randint(5, self.board['height'] - 5)
         self.snake = []
         vertical = randint(0, 1) == 0
         for i in range(3):
@@ -29,14 +29,14 @@ class SnakeGame:
     def generate_food(self):
         food = []
         while food == []:
-            food = [randint(1, self.board["width"]), randint(1, self.board["height"])]
+            food = [randint(1, self.board['width']), randint(1, self.board["height"])]
             if food in self.snake:
                 food = []
         self.food = food
 
     def render_init(self):
         curses.initscr()
-        win = curses.newwin(self.board["width"] + 2, self.board["height"] + 2, 0, 0)
+        win = curses.newwin(self.board['width'] + 2, self.board["height"] + 2, 0, 0)
         curses.curs_set(0)
         win.nodelay(1)
         win.timeout(200)
@@ -92,9 +92,9 @@ class SnakeGame:
 
     def check_collisions(self):
         if (self.snake[0][0] == 0 or
-                self.snake[0][0] == self.board["width"] + 1 or
+                self.snake[0][0] == self.board['width'] + 1 or
                 self.snake[0][1] == 0 or
-                self.snake[0][1] == self.board["height"] + 1 or
+                self.snake[0][1] == self.board['height'] + 1 or
                 self.snake[0] in self.snake[1:-1]):
             self.done = True
 

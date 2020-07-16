@@ -4,7 +4,6 @@ sys.path.insert(0, '../problems')
 
 from scoreProblem import ScoreProb
 from actionProblem import ActionProb
-from simulationProblem import SimulationProb
 
 from eAR import EAR
 from eTD import ETD
@@ -15,8 +14,8 @@ import numpy as np
 
 
 class EGA:
-    def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100, pop_size=100,
-                 mut_prob=0.3, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, **kwargs):
+    def __init__(self, problem, ar_N, td_N, rand_N, nn_N, p, c, iterations=100, pop_size=100,
+                 mut_prob=0.3, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, file_name='default'):
         self.iterations = iterations
         self.pop_size = pop_size
         self.mut_prob = mut_prob
@@ -25,13 +24,13 @@ class EGA:
         self.par_ratio = par_ratio
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
+        self.file_name = file_name
 
+        self.problem = None
         if problem == 'Score':
-            self.problem = ScoreProb()
+            self.problem = ScoreProb(p, c)
         if problem == 'Action':
-            self.problem = ActionProb()
-        if problem == 'Simulation':
-            self.problem = SimulationProb(kwargs['p'], kwargs['c'])
+            self.problem = ActionProb(p, c)
         self.ln1, self.ln2, self.ln3 = self.problem.model_dims()
 
         self.count = 0
@@ -41,9 +40,9 @@ class EGA:
         self.rand_N = rand_N
         self.nn_N = nn_N
 
-        self.td_size1 = 3
-        self.td_size2 = 5
-        self.td_size3 = 11
+        self.td_size1 = 6
+        self.td_size2 = 18
+        self.td_size3 = 23
 
         self.eln1 = 3
         self.eln2 = 4
@@ -192,9 +191,8 @@ class EGA:
             for p in range(self.pop_size):
                 J = self.problem.test(self.decode(pop[p]))[0]
                 fitness[p] = J
-            k = -1 if isinstance(self.problem, SimulationProb) else 1  # Maximize metric in SimulationProb, minimize error otherwise
-            pop = pop[np.argsort(k * fitness)]
-            fitness = fitness[np.argsort(k * fitness)]
+            pop = pop[np.argsort(-fitness)]
+            fitness = fitness[np.argsort(-fitness)]
 
             J, steps, score = self.problem.test(self.decode(pop[0]))
             i = pop[0][0]
@@ -204,8 +202,6 @@ class EGA:
                   '   ' + str('{:.2f}'.format(score)).zfill(6))
 
             prob = np.array(fitness, copy=True) - min(0, np.amin(fitness))  # prevent negatives
-            if not isinstance(self.problem, SimulationProb):  # Assign higher probability to smaller values in minimization problem
-                prob = np.sum(prob) - prob
             prob = prob / np.sum(prob)
             cum_prob = np.cumsum(prob)
             par = np.array([np.zeros(self.compress_len)] * self.par_size)
@@ -245,9 +241,5 @@ class EGA:
         print('Results:   ' + str('{:.2f}'.format(steps)).zfill(7) + '   ' +
               str('{:.2f}'.format(score)).zfill(6))
         print('==================================================')
-        np.savez('../saves/egaSave-' + str(self.problem.p) + '.npz', W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
-
-
-if __name__ == '__main__':
-    EGA = EGA('Simulation', 0, 2, 0, 0, p=0.1, c=0.9)
-    EGA.run()
+        np.savez('saves/egaSave-' + self.file_name + '.npz',
+                 W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])

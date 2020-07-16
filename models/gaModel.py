@@ -140,9 +140,4 @@ class GA:
         print('Results:   ' + str('{:.2f}'.format(steps)).zfill(7) + '   ' +
               str('{:.2f}'.format(score)).zfill(6))
         print('==================================================')
-        np.savez('../saves/gaSave.npz', W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
-
-
-if __name__ == '__main__':
-    GA = GA()
-    GA.run()
+        np.savez('saves/gaSave.npz', W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])

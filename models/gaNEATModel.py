@@ -31,7 +31,7 @@ class GANEAT:
 
         self.config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                   neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                                  '../saves/neatConfigs/gaNEATConfig.txt')
+                                  'saves/neatConfigs/gaNEATConfig.txt')
 
     def evaluate(self, genomes, config):
         for i, genome in genomes:
@@ -45,7 +45,7 @@ class GANEAT:
         pop = neat.Population(self.config)
         pop.add_reporter(neat.StdOutReporter(True))
         pop.add_reporter(neat.StatisticsReporter())
-        pop.add_reporter(neat.Checkpointer(5, filename_prefix='../saves/neatCkpts/gaNEATSave-'))
+        pop.add_reporter(neat.Checkpointer(5, filename_prefix='saves/neatCkpts/gaNEATSave-'))
 
         winner = pop.run(self.evaluate, 10)
         model = neat.nn.FeedForwardNetwork.create(winner, self.config)
@@ -58,8 +58,8 @@ class GANEAT:
     def test(self, file):
         config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                              neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                             '../saves/neatConfigs/gaNEATConfig.txt')
-        pop = neat.Checkpointer.restore_checkpoint('../saves/neatCkpts/' + file)
+                             'saves/neatConfigs/gaNEATConfig.txt')
+        pop = neat.Checkpointer.restore_checkpoint('saves/neatCkpts/' + file)
         winner = pop.run(self.evaluate, 1)
         model = neat.nn.FeedForwardNetwork.create(winner, config)
         steps, score = self.problem.test(model, 10)

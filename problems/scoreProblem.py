@@ -44,7 +44,7 @@ class ScoreProb:
             game_mem = []
             game = SnakeGame(gui=gui)
             _, score, snake, food = game.start()
-            prev_obs = self.helper.gen_obs(snake, food)
+            prev_obs = self.helper.gen_obs(snake, food, game.board['width'], game.board['height'])
             for _ in range(self.goal_steps):
                 preds = []
                 for action in range(-1, 2):
@@ -56,7 +56,7 @@ class ScoreProb:
                 if done:
                     break
                 else:
-                    prev_obs = self.helper.gen_obs(snake, food)
+                    prev_obs = self.helper.gen_obs(snake, food, game.board['width'], game.board['height'])
                     steps += 1
             steps_arr.append(steps)
             scores_arr.append(score)

@@ -5,12 +5,12 @@ class ETD:
     def __init__(self, td_N, td_size1, td_size2, td_size3, ln1, ln2, ln3):
         self.ln1, self.ln2, self.ln3 = ln1, ln2, ln3
         self.td_N = td_N
-        self.td_size1 = 3
-        self.td_size2 = 5
-        self.td_size3 = 11
+        self.td_size1 = td_size1
+        self.td_size2 = td_size2
+        self.td_size3 = td_size3
 
         self.clip_lo = -1
-        self.clip_hi = 0
+        self.clip_hi = 1
 
     def decoder(self):
         ret = {}
