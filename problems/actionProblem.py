@@ -13,7 +13,7 @@ class ActionProb:
     def __init__(self, p, c, test_games=10, goal_steps=2000, num_obs=3):
         self.test_games = test_games
         self.goal_steps = goal_steps
-        self.num_obs = num_obs
+        self.num_frames = num_obs
         self.helper = Helper()
 
         self.p = p
@@ -24,14 +24,14 @@ class ActionProb:
         # self.y = np.array([i[1] for i in self.training_data]).T
 
     def model(self):
-        W1 = np.random.randn(20, self.num_obs * 40) * 0.01
+        W1 = np.random.randn(20, self.num_frames * 40) * 0.01
         b1 = np.zeros(shape=(20, 1))
         W2 = np.random.randn(3, 20) * 0.01
         b2 = np.zeros(shape=(3, 1))
         return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
 
     def model_dims(self):
-        return self.num_obs * 40, 20, 3
+        return self.num_frames * 40, 20, 3
 
     def test(self, model, games=None, gui=False):
         if games is None:
@@ -44,10 +44,12 @@ class ActionProb:
             steps = 0
             game_mem = []
             game = SnakeGame(gui=gui)
+            width, height = game.board['width'], game.board['height']
             _, score, snake, food = game.start()
             prev_obs = []
-            for i in range(self.num_obs):
-                prev_obs.append(self.helper.gen_obs(snake, food, game.board['width'], game.board['height']))
+            for i in range(self.num_frames):
+                prev_obs.append(self.helper.gen_snake_obs(snake, width, height))
+            prev_obs.append(self.helper.gen_food_obs(food, width, height))
             for _ in range(self.goal_steps):
                 preds = self.helper.forward_prop(model, np.array(prev_obs).flatten())[-1]
                 action = np.argmax(np.array(preds))
@@ -57,9 +59,10 @@ class ActionProb:
                 if done:
                     break
                 else:
-                    for i in range(self.num_obs - 1):
+                    for i in range(self.num_frames - 1):
                         prev_obs[i + 1] = prev_obs[i]
-                    prev_obs[0] = self.helper.gen_obs(snake, food, game.board['width'], game.board['height'])
+                    prev_obs[0] = self.helper.gen_snake_obs(snake, width, height)
+                    prev_obs[-1] = self.helper.gen_food_obs(food, width, height)
                     steps += 1
             steps_arr.append(steps)
             scores_arr.append(score)

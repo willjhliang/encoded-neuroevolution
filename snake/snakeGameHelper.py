@@ -12,24 +12,43 @@ class Helper:
                              (1, 0): 2,
                              (0, -1): 3}
 
-    def gen_obs(self, snake, food, width, height):
+    def gen_snake_obs(self, snake, width, height):
         board = np.zeros((width, height))
         for i in snake:
             board[i[0] - 1, i[1] - 1] = 1
-        board[food[0] - 1, food[1] - 1] = 1
+        # board[food[0] - 1, food[1] - 1] = 1
 
         ret = []
-
         k = 1 << np.arange(width, dtype=np.uint32)[::-1]
         for i in range(height):
             ret.append(board[:, i].dot(k))
-            if i == food[0] - 1:
-                ret[-1] *= -1
+            # if i == food[0] - 1:
+            #     ret[-1] *= (1 << 10)
         k = 1 << np.arange(height, dtype=np.uint32)[::-1]
         for i in range(width):
             ret.append(board[i, :].dot(k))
-            if i == food[1] - 1:
-                ret[-1] *= -1
+            # if i == food[1] - 1:
+            #     ret[-1] *= (1 << 10)
+
+        ret = np.array(ret)
+        return ret
+
+    def gen_food_obs(self, food, width, height):
+        board = np.zeros((width, height))
+        board[food[0] - 1][food[1] - 1] = 1
+
+        ret = []
+        k = 1 << np.arange(width, dtype=np.uint32)[::-1]
+        for i in range(height):
+            ret.append(board[:, i].dot(k))
+            # if i == food[0] - 1:
+            #     ret[-1] *= (1 << 10)
+        k = 1 << np.arange(height, dtype=np.uint32)[::-1]
+        for i in range(width):
+            ret.append(board[i, :].dot(k))
+            # if i == food[1] - 1:
+            #     ret[-1] *= (1 << 10)
+
         ret = np.array(ret)
         return ret
 
