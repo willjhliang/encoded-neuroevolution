@@ -10,68 +10,95 @@ import numpy as np
 
 
 class ActionProb:
-    def __init__(self, p, c, test_games=10, goal_steps=2000, num_obs=3):
+    def __init__(self, p, c, test_games=20, goal_steps=2000, num_frames=3):
         self.test_games = test_games
         self.goal_steps = goal_steps
-        self.num_frames = num_obs
-        self.helper = Helper()
+        self.num_frames = num_frames
+        game = SnakeGame()
+        self.helper = Helper(game.board['width'], game.board['height'], 3)
 
         self.p = p
         self.c = c
+
+        self.ln = [400, 40, 3]
 
         # self.training_data = self.initial_population()
         # self.X = np.array([i[0] for i in self.training_data]).T
         # self.y = np.array([i[1] for i in self.training_data]).T
 
     def model(self):
-        W1 = np.random.randn(20, self.num_frames * 40) * 0.01
-        b1 = np.zeros(shape=(20, 1))
-        W2 = np.random.randn(3, 20) * 0.01
-        b2 = np.zeros(shape=(3, 1))
-        return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
+        return -1
+        # ret = {}
+        # for i in range(1, len(self.ln)):
+        #     W = np.random.randn(self.ln[i], self.ln[i - 1]) * 0.01
+        #     b = np.zeros(shape=(self.ln[i], 1))
+        #     ret['W' + str(i)] = W
+        #     ret['b' + str(i)] = b
+        #     ret['func' + str(i)] = self.lfunc[i - 1]
+        #     print(ret['func1'])
+        # return ret
+        # W1 = np.random.randn(40, self.num_frames * 40 + 40) * 0.01
+        # # W1 = np.random.randn(20, 4) * 0.01
+        # b1 = np.zeros(shape=(40, 1))
+        # W2 = np.random.randn(3, 40) * 0.01
+        # b2 = np.zeros(shape=(3, 1))
+        # return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
 
     def model_dims(self):
-        return self.num_frames * 40, 20, 3
+        return self.ln
+        # return self.num_frames * 40 + 40, 40, 3
 
-    def test(self, model, games=None, gui=False):
+
+    def test(self, model, games=None, goal_steps=None, gui=False):
         if games is None:
             games = self.test_games
             # return self.helper.forward_prop(model, self.X, self.y)[0]
+        if goal_steps is None:
+            goal_steps = self.goal_steps
 
         steps_arr = []
         scores_arr = []
+        game_score_arr = []
         for _ in range(games):
             steps = 0
+            score = 0
             game_mem = []
             game = SnakeGame(gui=gui)
-            width, height = game.board['width'], game.board['height']
-            _, score, snake, food = game.start()
-            prev_obs = []
-            for i in range(self.num_frames):
-                prev_obs.append(self.helper.gen_snake_obs(snake, width, height))
-            prev_obs.append(self.helper.gen_food_obs(food, width, height))
-            for _ in range(self.goal_steps):
-                preds = self.helper.forward_prop(model, np.array(prev_obs).flatten())[-1]
+            _, game_score, snake, food = game.start()
+            obs = self.helper.gen_obs(snake, food, 'Pix')
+
+            prev_dist = -1
+            prev_game_score = 0
+            for _ in range(goal_steps):
+                preds = self.helper.forward_prop(model, obs.flatten())[-1]
                 action = np.argmax(np.array(preds))
                 game_action = self.helper.get_game_action(snake, action - 1)
-                done, score, snake, food = game.step(game_action)
-                game_mem.append([prev_obs, action])
+                done, game_score, snake, food = game.step(game_action)
+                game_mem.append([obs, action])
+
+                dist = (abs(snake[0][0] - food[0]) + abs(snake[0][1] - food[1]))
+                if game_score == prev_game_score + 1:
+                    score += 50
+                if dist < prev_dist:
+                    score += 1
+                prev_game_score = game_score
+                prev_dist = dist
+
                 if done:
                     break
                 else:
-                    for i in range(self.num_frames - 1):
-                        prev_obs[i + 1] = prev_obs[i]
-                    prev_obs[0] = self.helper.gen_snake_obs(snake, width, height)
-                    prev_obs[-1] = self.helper.gen_food_obs(food, width, height)
+                    obs = self.helper.update_obs(snake, food, 'Pix', obs)
                     steps += 1
             steps_arr.append(steps)
             scores_arr.append(score)
+            game_score_arr.append(game_score)
         game.end_game()
 
         avg_steps = 1.0 * sum(steps_arr) / len(steps_arr)
         avg_score = 1.0 * sum(scores_arr) / len(scores_arr)
-        fitness = avg_score - self.p * max(0, self.c * self.goal_steps - avg_steps)
-        return fitness, avg_steps, avg_score
+        avg_game_score = 1.0 * sum(game_score_arr) / len(game_score_arr)
+        fitness = 10 * avg_score + avg_steps
+        return fitness, avg_steps, avg_score, avg_game_score
 
     # def initial_population(self):
     #     if os.path.isfile('../data/actionData.npy'):

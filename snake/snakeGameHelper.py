@@ -6,59 +6,123 @@ import tensorflow as tf
 
 
 class Helper:
-    def __init__(self):
+    def __init__(self, width, height, num_frames):
         self.vecs_to_keys = {(-1, 0): 0,
                              (0, 1): 1,
                              (1, 0): 2,
                              (0, -1): 3}
+        self.width = width
+        self.height = height
+        self.num_frames = num_frames
 
-    def gen_snake_obs(self, snake, width, height):
-        board = np.zeros((width, height))
+    def gen_obs(self, snake, food, intype):
+        if intype == 'Vec':
+            return self.gen_vec_obs(snake, food)
+        if intype == 'Pix':
+            # ret = []
+            # for i in range(self.num_frames):
+            #     ret.append(self.gen_pix_snake_obs(snake))
+            # ret.append(self.gen_pix_food_obs(food))
+            # return np.array(ret)
+
+            board1 = np.zeros((self.width, self.height))
+            # board2 = np.zeros((self.width, self.height))
+            for i in snake:
+                board1[i[0] - 1, i[1] - 1] = 1
+            board1[food[0] - 1][food[1] - 1] = 100
+            # return np.concatenate((board1.flatten(), board2.flatten()))
+            return board1.flatten()
+
+        return -1
+
+    def update_obs(self, snake, food, intype, obs):
+        if intype == 'Vec':
+            return self.gen_vec_obs(snake, food)
+        if intype == 'Pix':
+            # ret = obs.tolist()
+            # for i in range(self.num_frames - 1):
+            #     ret[i + 1] = ret[i]
+            # ret[0] = self.gen_pix_snake_obs(snake)
+            # ret[-1] = self.gen_pix_food_obs(food)
+            # return np.array(ret)
+
+            board1 = np.zeros((self.width, self.height))
+            # board2 = np.zeros((self.width, self.height))
+            for i in snake:
+                board1[i[0] - 1, i[1] - 1] = 1
+            board1[food[0] - 1][food[1] - 1] = 100
+            # return np.concatenate((board1.flatten(), board2.flatten()))
+            return board1.flatten()
+
+        return -1
+
+    # def get_board(self, snake, food, intype, **kwargs):
+    #     board = np.zeros((kwargs['width'], kwargs['height']))
+    #     for i in snake:
+    #         board[i[0] - 1, i[1] - 1] = 1
+    #     board[food[0] - 1][food[1] - 1] = -100
+    #     return board
+
+    def gen_pix_snake_obs(self, snake):
+        board = np.zeros((self.width, self.height))
         for i in snake:
             board[i[0] - 1, i[1] - 1] = 1
         # board[food[0] - 1, food[1] - 1] = 1
 
         ret = []
-        k = 1 << np.arange(width, dtype=np.uint32)[::-1]
-        for i in range(height):
-            ret.append(board[:, i].dot(k))
-            # if i == food[0] - 1:
-            #     ret[-1] *= (1 << 10)
-        k = 1 << np.arange(height, dtype=np.uint32)[::-1]
-        for i in range(width):
-            ret.append(board[i, :].dot(k))
-            # if i == food[1] - 1:
-            #     ret[-1] *= (1 << 10)
+        for i in range(0, self.height, 2):
+            for j in range(0, self.width, 2):
+                k = board[i][j] + board[i + 1][j] * 4 + board[i][j + 1] * 16 + board[i + 1][j + 1] * 64
+                ret.append(k)
+        return np.array(ret)
 
-        ret = np.array(ret)
-        return ret
+        # ret = []
+        # k = 1 << np.arange(width, dtype=np.uint32)[::-1]
+        # for i in range(height):
+        #     ret.append(board[:, i].dot(k))
+        #     # if i == food[0] - 1:
+        #     #     ret[-1] *= (1 << 10)
+        # k = 1 << np.arange(height, dtype=np.uint32)[::-1]
+        # for i in range(width):
+        #     ret.append(board[i, :].dot(k))
+        #     # if i == food[1] - 1:
+        #     #     ret[-1] *= (1 << 10)
+        # ret = np.array(ret)
+        # return ret
 
-    def gen_food_obs(self, food, width, height):
-        board = np.zeros((width, height))
+    def gen_pix_food_obs(self, food):
+        board = np.zeros((self.width, self.height))
         board[food[0] - 1][food[1] - 1] = 1
 
         ret = []
-        k = 1 << np.arange(width, dtype=np.uint32)[::-1]
-        for i in range(height):
-            ret.append(board[:, i].dot(k))
-            # if i == food[0] - 1:
-            #     ret[-1] *= (1 << 10)
-        k = 1 << np.arange(height, dtype=np.uint32)[::-1]
-        for i in range(width):
-            ret.append(board[i, :].dot(k))
-            # if i == food[1] - 1:
-            #     ret[-1] *= (1 << 10)
+        for i in range(0, self.height, 2):
+            for j in range(0, self.width, 2):
+                k = board[i][j] + board[i + 1][j] * 4 + board[i][j + 1] * 16 + board[i + 1][j + 1] * 64
+                ret.append(k)
+        return np.array(ret)
 
-        ret = np.array(ret)
-        return ret
+#         ret = []
+#         k = 1 << np.arange(width, dtype=np.uint32)[::-1]
+#         for i in range(height):
+#             ret.append(board[:, i].dot(k))
+#             # if i == food[0] - 1:
+#             #     ret[-1] *= (1 << 10)
+#         k = 1 << np.arange(height, dtype=np.uint32)[::-1]
+#         for i in range(width):
+#             ret.append(board[i, :].dot(k))
+#             # if i == food[1] - 1:
+#             #     ret[-1] *= (1 << 10)
+#         ret = np.array(ret)
+#         return ret
 
-        # snake_dir = self.get_snake_dir_vec(snake)
-        # food_dir = self.get_food_dir_vec(snake, food)
-        # barr_left = self.is_dir_blocked(snake, self.turn_vec_left(snake_dir))
-        # barr_front = self.is_dir_blocked(snake, snake_dir)
-        # barr_right = self.is_dir_blocked(snake, self.turn_vec_right(snake_dir))
-        # angle = self.get_angle(snake_dir, food_dir)
-        # return np.array([int(barr_left), int(barr_front), int(barr_right), angle])
+    def gen_vec_obs(self, snake, food):
+        snake_dir = self.get_snake_dir_vec(snake)
+        food_dir = self.get_food_dir_vec(snake, food)
+        barr_left = self.is_dir_blocked(snake, self.turn_vec_left(snake_dir))
+        barr_front = self.is_dir_blocked(snake, snake_dir)
+        barr_right = self.is_dir_blocked(snake, self.turn_vec_right(snake_dir))
+        angle = self.get_angle(snake_dir, food_dir)
+        return np.array([int(barr_left), int(barr_front), int(barr_right), angle])
 
     def gen_action(self, snake):
         action = randint(0, 2) - 1
@@ -102,21 +166,28 @@ class Helper:
 
     def forward_prop(self, model, X, y=None):
         if type(model) is dict:
-            W1 = model['W1']
-            b1 = model['b1']
-            W2 = model['W2']
-            b2 = model['b2']
+            A = np.array(X, copy=True)
+            for i in range(1, int(len(model) / 2)):
+                W = model['W' + str(i)]
+                b = model['b' + str(i)]
+                func = model['func' + str(i)]
 
-            Z1 = np.dot(W1, X) + b1
-            A1 = np.maximum(Z1, 0)
-            Z2 = np.dot(W2, A1) + b2
-            A2 = Z2
+                Z = np.dot(W, A) + b
+                if func == 'ReLU':
+                    A = np.maximum(Z, 0)
+                if func == 'sigmoid':
+                    A = 1 / (1 + np.exp(-Z))
+                if func == 'tanh':
+                    A = np.tanh(Z)
+                else:
+                    A = Z
+
             if y is None:
                 J = -1
             else:
-                J = 1 / 2 * np.mean((A2 - y) ** 2)
+                J = 1 / 2 * np.mean((A - y) ** 2)
 
-            return J, Z1, A1, Z2, A2
+            return J, A
 
         if type(model) is neat.nn.feed_forward.FeedForwardNetwork:
             J = 0
@@ -140,16 +211,16 @@ class Helper:
 
         if type(model) is tf.keras.Model:
             X = np.expand_dims(X, axis=0)
-            A2 = model.predict(X)
+            A = model.predict(X)
             if y is None:
                 J = -1
             else:
-                J = 1 / 2 * np.mean((A2 - y) ** 2)
+                J = 1 / 2 * np.mean((A - y) ** 2)
 
-            return J, A2
+            return J, A
 
 
 if __name__ == '__main__':
     helper = Helper()
     snake = np.array([[1, 1], [2, 1], [3, 1], [3, 2]])
-    print(helper.gen_obs(snake, [1, 1], 20, 20))
+    print(helper.gen_obs(snake, [1, 1], 'Pix', num_frames=1, width=20, height=20))

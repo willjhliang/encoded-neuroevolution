@@ -2,8 +2,8 @@ import numpy as np
 
 
 class ENN:
-    def __init__(self, nn_N, eln1, eln2, eln3, ln1, ln2, ln3):
-        self.ln1, self.ln2, self.ln3 = ln1, ln2, ln3
+    def __init__(self, nn_N, eln1, eln2, eln3, ln):
+        self.ln = ln
         self.nn_N = nn_N
         self.eln1, self.eln2, self.eln3 = eln1, eln2, eln3
 
@@ -36,8 +36,8 @@ class ENN:
         for i in range(self.nn_N):
             deW1 = decoder['W1' + str(i)]
             deb1 = decoder['b1' + str(i)]
-            deW2 = decoder['W2' + str(i)]
-            deb2 = decoder['b2' + str(i)]
+            deW2 = decoder['W1' + str(i)]
+            deb2 = decoder['b1' + str(i)]
             ret = np.concatenate((ret, deW1.flatten()))
             ret = np.concatenate((ret, deb1.flatten()))
             ret = np.concatenate((ret, deW2.flatten()))
@@ -60,28 +60,21 @@ class ENN:
         return ret
 
     def decode(self, decoder):
-        W1 = np.zeros(shape=(self.ln2, self.ln1))
-        b1 = np.zeros(shape=(self.ln2, 1))
-        W2 = np.zeros(shape=(self.ln3, self.ln2))
-        b2 = np.zeros(shape=(self.ln3, 1))
-
+        ret = {}
+        for j in range(1, len(self.ln)):
+            ret['W' + str(j)] = np.zeros(shape=(self.ln[j], self.ln[j - 1]))
+            ret['b' + str(j)] = np.zeros(shape=(self.ln[j], 1))
         for i in range(self.nn_N):
-            L1 = np.zeros((self.ln2, self.ln1 + 1))
-            L2 = np.zeros((self.ln3, self.ln2 + 1))
-            for j in range(L1.shape[0]):
-                for k in range(L1.shape[1]):
-                    X = np.array([j, k, 0])
-                    L1[j][k] += self.forward_prop(np.expand_dims(X.T, axis=-1), decoder)
-            for j in range(L2.shape[0]):
-                for k in range(L2.shape[1]):
-                    X = np.array([j, k, 1])
-                    L2[j][k] += self.forward_prop(np.expand_dims(X.T, axis=-1), decoder)
-            W1 += L1[:, :-1]
-            b1 += np.expand_dims(L1[:, -1], axis=-1)
-            W2 += L2[:, :-1]
-            b2 += np.expand_dims(L2[:, -1], axis=-1)
+            for j in range(1, len(self.ln)):
+                L = np.zeros((self.ln[j], self.ln[j - 1] + 1))
+                for k in range(L.shape[0]):
+                    for l in range(L.shape[1]):
+                        X = np.array([k, l, j])
+                        L[k][l] += self.forward_prop(np.expand_dims(X.T, axis=-1), decoder)
+                ret['W' + str(j)] += L[:, :-1]
+                ret['b' + str(j)] += np.expand_dims(L[:, -1], axis=-1)
 
-        return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
+        return ret
 
     def clip(self, x):
         # x[x < self.clip_lo] = self.clip_lo

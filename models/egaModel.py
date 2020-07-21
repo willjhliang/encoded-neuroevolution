@@ -11,6 +11,7 @@ from eRand import ERand
 from eNN import ENN
 
 import numpy as np
+import tensorflow as tf
 
 
 class EGA:
@@ -31,7 +32,8 @@ class EGA:
             self.problem = ScoreProb(p, c)
         if problem == 'Action':
             self.problem = ActionProb(p, c)
-        self.ln1, self.ln2, self.ln3 = self.problem.model_dims()
+        self.ln = self.problem.model_dims()
+        self.lfunc = ['ReLU', '']
 
         self.count = 0
 
@@ -40,9 +42,35 @@ class EGA:
         self.rand_N = rand_N
         self.nn_N = nn_N
 
-        self.td_size1 = 6
-        self.td_size2 = 18
-        self.td_size3 = 23
+        # For 400 - 40 - 3
+        self.td_size1 = 19
+        self.td_size2 = 23
+        self.td_size3 = 37
+
+        # For 160 - 40 - 20 - 3
+        # self.td_size1 = 11
+        # self.td_size2 = 18
+        # self.td_size3 = 37
+
+        # For 160 - 40 - 3
+        # self.td_size1 = 13
+        # self.td_size2 = 22
+        # self.td_size3 = 23
+
+        # For 160 - 20 - 3
+        # self.td_size1 = 11
+        # self.td_size2 = 13
+        # self.td_size3 = 23
+
+        # For 120 - 20 - 3
+        # self.td_size1 = 6
+        # self.td_size2 = 18
+        # self.td_size3 = 23
+
+        # For 4 - 20 - 3
+        # self.td_size1 = 3
+        # self.td_size2 = 5
+        # self.td_size3 = 11
 
         self.eln1 = 3
         self.eln2 = 4
@@ -53,10 +81,10 @@ class EGA:
         self.rand_size = 2 * self.rand_N
         self.nn_size = (self.eln2 * self.eln1 + self.eln2 + self.eln3 * self.eln2 + self.eln3) * self.nn_N
 
-        self.ar = EAR(self.ar_N, self.ln1, self.ln2, self.ln3)
-        self.td = ETD(self.td_N, self.td_size1, self.td_size2, self.td_size3, self.ln1, self.ln2, self.ln3)
-        self.rand = ERand(self.rand_N, self.ln1, self.ln2, self.ln3)
-        self.nn = ENN(self.nn_N, self.eln1, self.eln2, self.eln3, self.ln1, self.ln2, self.ln3)
+        self.ar = EAR(self.ar_N, self.ln)
+        self.td = ETD(self.td_N, self.td_size1, self.td_size2, self.td_size3, self.ln)
+        self.rand = ERand(self.rand_N, self.ln)
+        self.nn = ENN(self.nn_N, self.eln1, self.eln2, self.eln3, self.ln)
         self.compress_len = self.compress_decoder(self.decoder()).size
 
         self.clip_lo = -1.1
@@ -119,33 +147,36 @@ class EGA:
     def decode(self, decoder):
         decoder = self.expand_decoder(decoder)
 
-        W1 = np.zeros(shape=(self.ln2, self.ln1))
-        b1 = np.zeros(shape=(self.ln2, 1))
-        W2 = np.zeros(shape=(self.ln3, self.ln2))
-        b2 = np.zeros(shape=(self.ln3, 1))
+        ret = {}
+        for i in range(1, len(self.ln)):
+            ret['W' + str(i)] = np.zeros(shape=(self.ln[i], self.ln[i - 1]))
+            ret['b' + str(i)] = np.zeros(shape=(self.ln[i], 1))
 
         tret = self.ar.decode(decoder)
-        W1 += tret['W1']
-        b1 += tret['b1']
-        W2 += tret['W2']
-        b2 += tret['b2']
+        if tret:
+            for i in range(1, len(self.ln)):
+                ret['W' + str(i)] += tret['W' + str(i)]
+                ret['b' + str(i)] += tret['b' + str(i)]
         tret = self.td.decode(decoder)
-        W1 += tret['W1']
-        b1 += tret['b1']
-        W2 += tret['W2']
-        b2 += tret['b2']
+        if tret:
+            for i in range(1, len(self.ln)):
+                ret['W' + str(i)] += tret['W' + str(i)]
+                ret['b' + str(i)] += tret['b' + str(i)]
         tret = self.rand.decode(decoder)
-        W1 += tret['W1']
-        b1 += tret['b1']
-        W2 += tret['W2']
-        b2 += tret['b2']
+        if tret:
+            for i in range(1, len(self.ln)):
+                ret['W' + str(i)] += tret['W' + str(i)]
+                ret['b' + str(i)] += tret['b' + str(i)]
         tret = self.nn.decode(decoder)
-        W1 += tret['W1']
-        b1 += tret['b1']
-        W2 += tret['W2']
-        b2 += tret['b2']
+        if tret:
+            for i in range(1, len(self.ln)):
+                ret['W' + str(i)] += tret['W' + str(i)]
+                ret['b' + str(i)] += tret['b' + str(i)]
 
-        return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
+        for j in range(1, len(self.ln)):
+            ret['func' + str(j)] = self.lfunc[j - 1]
+
+        return ret
 
     def clip(self, decoder):
         ret = np.array([decoder[0]])
@@ -161,6 +192,14 @@ class EGA:
         k += self.nn_size
 
         return ret
+
+    def tf_model(self, weights):
+        ret = tf.keras.Sequential()
+        ret.add(tf.keras.layers.InputLayer(input_shape=(20, 20, 2)))
+        ret.add(tf.keras.layers.Conv2D(filters=16, kernel_size=3, activation='relu', padding='same'))
+        ret.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2), strides=(2, 2)))
+        ret.add(tf.keras.layers.Conv2D(filters=4, kernel_size=3, activation='relu', padding='same'))
+        ret.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2), strides=(2, 2)))
 
     def cross(self, x, y):
         c1 = x.copy()
@@ -194,12 +233,12 @@ class EGA:
             pop = pop[np.argsort(-fitness)]
             fitness = fitness[np.argsort(-fitness)]
 
-            J, steps, score = self.problem.test(self.decode(pop[0]))
+            J, steps, score, game_score = self.problem.test(self.decode(pop[0]))
             i = pop[0][0]
             # if t % 25 == 0:
             print('Iter ' + str(t).zfill(3) + '   ' + str(int(i)).zfill(6) + '   ' +
-                  str('{:.2f}'.format(J)).zfill(6) + '   ' + str('{:.2f}'.format(steps)).zfill(7) +
-                  '   ' + str('{:.2f}'.format(score)).zfill(6))
+                  str('{:.2f}'.format(J)).zfill(7) + '   ' + str('{:.2f}'.format(steps)).zfill(7) +
+                  '   ' + str('{:.2f}'.format(score)).zfill(6) + '   ' + str('{:.2f}'.format(game_score)).zfill(7))
 
             prob = np.array(fitness, copy=True) - min(0, np.amin(fitness))  # prevent negatives
             prob = prob / np.sum(prob)
@@ -236,10 +275,17 @@ class EGA:
                 self.count += 1
 
         model = self.decode(pop[0])
-        _, steps, score = self.problem.test(model, 100)
+        _, steps, score, game_score = self.problem.test(model, 1000)
         print('==================================================')
         print('Results:   ' + str('{:.2f}'.format(steps)).zfill(7) + '   ' +
-              str('{:.2f}'.format(score)).zfill(6))
+              str('{:.2f}'.format(score)).zfill(6) + '   ' + str('{:.2f}'.format(game_score)).zfill(7))
         print('==================================================')
-        np.savez('saves/egaSave-' + self.file_name + '.npz',
-                 W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
+        i = input()
+        self.problem.test(model, 1, 30, gui=True)
+        # np.savez('saves/egaSave-' + self.file_name + '.npz',
+        #          W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
+
+    # def test(self, file):
+    #     f = np.load('saves/egaSave-' + file + '.npz')
+        # model = {'W1': f['W1'], 'b1': f['b1'], 'W2': f['W2'], 'b2': f['b2']}
+        # self.problem.test(model, 1000)
