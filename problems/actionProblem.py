@@ -20,8 +20,6 @@ class ActionProb:
         self.p = p
         self.c = c
 
-        self.ln = [400, 40, 3]
-
         # self.training_data = self.initial_population()
         # self.X = np.array([i[0] for i in self.training_data]).T
         # self.y = np.array([i[1] for i in self.training_data]).T
@@ -44,11 +42,6 @@ class ActionProb:
         # b2 = np.zeros(shape=(3, 1))
         # return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
 
-    def model_dims(self):
-        return self.ln
-        # return self.num_frames * 40 + 40, 40, 3
-
-
     def test(self, model, games=None, goal_steps=None, gui=False):
         if games is None:
             games = self.test_games
@@ -70,7 +63,7 @@ class ActionProb:
             prev_dist = -1
             prev_game_score = 0
             for _ in range(goal_steps):
-                preds = self.helper.forward_prop(model, obs.flatten())[-1]
+                preds = self.helper.forward_prop(model, obs)[-1]
                 action = np.argmax(np.array(preds))
                 game_action = self.helper.get_game_action(snake, action - 1)
                 done, game_score, snake, food = game.step(game_action)

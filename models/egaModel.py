@@ -32,8 +32,11 @@ class EGA:
             self.problem = ScoreProb(p, c)
         if problem == 'Action':
             self.problem = ActionProb(p, c)
-        self.ln = self.problem.model_dims()
-        self.lfunc = ['ReLU', '']
+
+        # self.fln = [400, 20, 20, 20, 3]
+        # self.ln = [[20, 20, 2], [3, 3, 2, 16], [3, 3, 16, 4], 100, 20, 3]
+        self.ln = [[20, 20, 2], [3, 3, 2, 16], [3, 3, 16, 4], [100, 20], [20, 3]]
+        self.lfunc = ['relu', 'relu', 'relu', 'linear']
 
         self.count = 0
 
@@ -42,10 +45,20 @@ class EGA:
         self.rand_N = rand_N
         self.nn_N = nn_N
 
+        # For CNN
+        self.td_size1 = 11
+        self.td_size2 = 15
+        self.td_size3 = 18
+
+        # For 400 - 20 - 20 - 20 - 3
+        # self.td_size1 = 17
+        # self.td_size2 = 21
+        # self.td_size3 = 25
+
         # For 400 - 40 - 3
-        self.td_size1 = 19
-        self.td_size2 = 23
-        self.td_size3 = 37
+        # self.td_size1 = 19
+        # self.td_size2 = 23
+        # self.td_size3 = 37
 
         # For 160 - 40 - 20 - 3
         # self.td_size1 = 11
@@ -76,7 +89,7 @@ class EGA:
         self.eln2 = 4
         self.eln3 = 1
 
-        self.ar_size = 4 * self.ar_N
+        self.ar_size = (2 * len(self.lfunc)) * self.ar_N
         self.td_size = (self.td_size1 + self.td_size2 + self.td_size3 + 1) * self.td_N
         self.rand_size = 2 * self.rand_N
         self.nn_size = (self.eln2 * self.eln1 + self.eln2 + self.eln3 * self.eln2 + self.eln3) * self.nn_N
@@ -86,9 +99,6 @@ class EGA:
         self.rand = ERand(self.rand_N, self.ln)
         self.nn = ENN(self.nn_N, self.eln1, self.eln2, self.eln3, self.ln)
         self.compress_len = self.compress_decoder(self.decoder()).size
-
-        self.clip_lo = -1.1
-        self.clip_hi = 1.1
 
     def decoder(self):
         ret = {'id': self.count}
@@ -149,32 +159,32 @@ class EGA:
 
         ret = {}
         for i in range(1, len(self.ln)):
-            ret['W' + str(i)] = np.zeros(shape=(self.ln[i], self.ln[i - 1]))
-            ret['b' + str(i)] = np.zeros(shape=(self.ln[i], 1))
+            ret['W' + str(i)] = np.zeros(shape=self.ln[i])
+            ret['b' + str(i)] = np.zeros(shape=(self.ln[i][-1]))
 
-        tret = self.ar.decode(decoder)
-        if tret:
-            for i in range(1, len(self.ln)):
-                ret['W' + str(i)] += tret['W' + str(i)]
-                ret['b' + str(i)] += tret['b' + str(i)]
+#         tret = self.ar.decode(decoder)
+#         if tret:
+#             for i in range(1, len(self.fln)):
+#                 ret['W' + str(i)] += tret['W' + str(i)]
+#                 ret['b' + str(i)] += tret['b' + str(i)]
         tret = self.td.decode(decoder)
         if tret:
             for i in range(1, len(self.ln)):
                 ret['W' + str(i)] += tret['W' + str(i)]
                 ret['b' + str(i)] += tret['b' + str(i)]
-        tret = self.rand.decode(decoder)
-        if tret:
-            for i in range(1, len(self.ln)):
-                ret['W' + str(i)] += tret['W' + str(i)]
-                ret['b' + str(i)] += tret['b' + str(i)]
-        tret = self.nn.decode(decoder)
-        if tret:
-            for i in range(1, len(self.ln)):
-                ret['W' + str(i)] += tret['W' + str(i)]
-                ret['b' + str(i)] += tret['b' + str(i)]
+#         tret = self.rand.decode(decoder)
+#         if tret:
+#             for i in range(1, len(self.fln)):
+#                 ret['W' + str(i)] += tret['W' + str(i)]
+#                 ret['b' + str(i)] += tret['b' + str(i)]
+#         tret = self.nn.decode(decoder)
+#         if tret:
+#             for i in range(1, len(self.fln)):
+#                 ret['W' + str(i)] += tret['W' + str(i)]
+#                 ret['b' + str(i)] += tret['b' + str(i)]
 
-        for j in range(1, len(self.ln)):
-            ret['func' + str(j)] = self.lfunc[j - 1]
+#         for j in range(1, len(self.fln)):
+#             ret['func' + str(j)] = self.lfunc[j - 1]
 
         return ret
 
@@ -196,10 +206,20 @@ class EGA:
     def tf_model(self, weights):
         ret = tf.keras.Sequential()
         ret.add(tf.keras.layers.InputLayer(input_shape=(20, 20, 2)))
-        ret.add(tf.keras.layers.Conv2D(filters=16, kernel_size=3, activation='relu', padding='same'))
+        ret.add(tf.keras.layers.Conv2D(filters=16, kernel_size=3, activation=self.lfunc[0], padding='same'))
         ret.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2), strides=(2, 2)))
-        ret.add(tf.keras.layers.Conv2D(filters=4, kernel_size=3, activation='relu', padding='same'))
+        ret.add(tf.keras.layers.Conv2D(filters=4, kernel_size=3, activation=self.lfunc[1], padding='same'))
         ret.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2), strides=(2, 2)))
+        ret.add(tf.keras.layers.Flatten())
+        ret.add(tf.keras.layers.Dense(20, activation=self.lfunc[2]))
+        ret.add(tf.keras.layers.Dense(3, activation=self.lfunc[3]))
+
+        ret.layers[0].set_weights([weights['W1'].reshape(3, 3, 2, 16), weights['b1']])
+        ret.layers[2].set_weights([weights['W2'].reshape(3, 3, 16, 4), weights['b2']])
+        ret.layers[5].set_weights([weights['W3'].reshape(100, 20), weights['b3']])
+        ret.layers[6].set_weights([weights['W4'].reshape(20, 3), weights['b4']])
+
+        return ret
 
     def cross(self, x, y):
         c1 = x.copy()
@@ -228,12 +248,12 @@ class EGA:
         for t in range(1, self.iterations + 1):
             fitness = np.zeros(self.pop_size)
             for p in range(self.pop_size):
-                J = self.problem.test(self.decode(pop[p]))[0]
+                J = self.problem.test(self.tf_model(self.decode(pop[p])))[0]
                 fitness[p] = J
             pop = pop[np.argsort(-fitness)]
             fitness = fitness[np.argsort(-fitness)]
 
-            J, steps, score, game_score = self.problem.test(self.decode(pop[0]))
+            J, steps, score, game_score = self.problem.test(self.tf_model(self.decode(pop[0])))
             i = pop[0][0]
             # if t % 25 == 0:
             print('Iter ' + str(t).zfill(3) + '   ' + str(int(i)).zfill(6) + '   ' +

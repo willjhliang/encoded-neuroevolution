@@ -26,12 +26,13 @@ class Helper:
             # return np.array(ret)
 
             board1 = np.zeros((self.width, self.height))
-            # board2 = np.zeros((self.width, self.height))
+            board2 = np.zeros((self.width, self.height))
             for i in snake:
                 board1[i[0] - 1, i[1] - 1] = 1
-            board1[food[0] - 1][food[1] - 1] = 100
+            board2[food[0] - 1][food[1] - 1] = 1
+            return np.stack((board1, board2), axis=2)
             # return np.concatenate((board1.flatten(), board2.flatten()))
-            return board1.flatten()
+            # return board1.flatten()
 
         return -1
 
@@ -47,12 +48,13 @@ class Helper:
             # return np.array(ret)
 
             board1 = np.zeros((self.width, self.height))
-            # board2 = np.zeros((self.width, self.height))
+            board2 = np.zeros((self.width, self.height))
             for i in snake:
                 board1[i[0] - 1, i[1] - 1] = 1
-            board1[food[0] - 1][food[1] - 1] = 100
+            board2[food[0] - 1][food[1] - 1] = 1
+            return np.stack((board1, board2), axis=2)
             # return np.concatenate((board1.flatten(), board2.flatten()))
-            return board1.flatten()
+            # return board1.flatten()
 
         return -1
 
@@ -167,13 +169,13 @@ class Helper:
     def forward_prop(self, model, X, y=None):
         if type(model) is dict:
             A = np.array(X, copy=True)
-            for i in range(1, int(len(model) / 2)):
+            for i in range(1, int(len(model)/ 3)):
                 W = model['W' + str(i)]
                 b = model['b' + str(i)]
                 func = model['func' + str(i)]
 
                 Z = np.dot(W, A) + b
-                if func == 'ReLU':
+                if func == 'relu':
                     A = np.maximum(Z, 0)
                 if func == 'sigmoid':
                     A = 1 / (1 + np.exp(-Z))
@@ -209,7 +211,7 @@ class Helper:
 
             return J, A2
 
-        if type(model) is tf.keras.Model:
+        if type(model) is tf.keras.Sequential:
             X = np.expand_dims(X, axis=0)
             A = model.predict(X)
             if y is None:
@@ -221,6 +223,6 @@ class Helper:
 
 
 if __name__ == '__main__':
-    helper = Helper()
+    helper = Helper(20, 20, 1)
     snake = np.array([[1, 1], [2, 1], [3, 1], [3, 2]])
-    print(helper.gen_obs(snake, [1, 1], 'Pix', num_frames=1, width=20, height=20))
+    print(helper.gen_obs(snake, [1, 1], 'Pix').shape)
