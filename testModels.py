@@ -5,5 +5,13 @@ sys.path.insert(0, 'problems')
 sys.path.insert(0, 'snake')
 
 from egaModel import EGA
+import numpy as np
 
-EGA('Action', 0, 2, 0, 0, p=0.01, c=0.9, iterations=100, file_name='400-input').run()
+file_name = input()
+# f = np.load('saves/egaPop-' + file_name + '.npz')
+# print(f['iterations'])
+# pop = f['pop']
+# food_arr = f['food']
+a = EGA('Action', 0, 8, 0, 0, iterations=300, file_name=file_name)
+a.run()
+# a.test(pop, food_arr)

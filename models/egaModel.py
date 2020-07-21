@@ -12,11 +12,13 @@ from eNN import ENN
 
 import numpy as np
 import tensorflow as tf
+import time
 
 
 class EGA:
-    def __init__(self, problem, ar_N, td_N, rand_N, nn_N, p, c, iterations=100, pop_size=100,
-                 mut_prob=0.3, elite_ratio=0.01, cross_prob=0.5, par_ratio=0.3, file_name='default'):
+    def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100,
+                 pop_size=100, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.7,
+                 par_ratio=0.3, file_name='default'):
         self.iterations = iterations
         self.pop_size = pop_size
         self.mut_prob = mut_prob
@@ -29,11 +31,20 @@ class EGA:
 
         self.problem = None
         if problem == 'Score':
-            self.problem = ScoreProb(p, c)
+            self.problem = ScoreProb()
         if problem == 'Action':
-            self.problem = ActionProb(p, c)
-        self.ln = self.problem.model_dims()
-        self.lfunc = ['ReLU', '']
+            self.problem = ActionProb()
+        randx = np.random.randint(1, 20, 3000)
+        randy = np.random.randint(1, 20, 3000)
+        self.food_arr = [[i, j] for i, j in zip(randx, randy)]  # Test with preset food positions
+
+        self.ln = [[24, 24, 6], [5, 5, 6, 32], [3, 3, 32, 16], [3, 3, 16, 8],
+                   [288, 128], [128, 128], [128, 64], [64, 64],
+                   [64, 16], [16, 16], [16, 4]]
+
+        self.lfunc = ['relu', 'pool', 'relu', 'pool', 'relu', 'flatten',
+                      'relu', 'relu', 'relu', 'relu',
+                      'relu', 'relu', 'linear']
 
         self.count = 0
 
@@ -42,53 +53,25 @@ class EGA:
         self.rand_N = rand_N
         self.nn_N = nn_N
 
-        # For 400 - 40 - 3
-        self.td_size1 = 19
-        self.td_size2 = 23
-        self.td_size3 = 37
-
-        # For 160 - 40 - 20 - 3
-        # self.td_size1 = 11
-        # self.td_size2 = 18
-        # self.td_size3 = 37
-
-        # For 160 - 40 - 3
-        # self.td_size1 = 13
-        # self.td_size2 = 22
-        # self.td_size3 = 23
-
-        # For 160 - 20 - 3
-        # self.td_size1 = 11
-        # self.td_size2 = 13
-        # self.td_size3 = 23
-
-        # For 120 - 20 - 3
-        # self.td_size1 = 6
-        # self.td_size2 = 18
-        # self.td_size3 = 23
-
-        # For 4 - 20 - 3
-        # self.td_size1 = 3
-        # self.td_size2 = 5
-        # self.td_size3 = 11
+        self.td_sizes = [[10, 22, 22], [16, 17, 17], [6, 13, 15],
+                         [32, 34, 34], [16, 24, 43], [17, 18, 27], [13, 16, 20],
+                         [8, 10, 13], [3, 7, 13], [2, 5, 7]]
 
         self.eln1 = 3
         self.eln2 = 4
         self.eln3 = 1
 
-        self.ar_size = 4 * self.ar_N
-        self.td_size = (self.td_size1 + self.td_size2 + self.td_size3 + 1) * self.td_N
+        self.ar_size = (2 * len(self.lfunc)) * self.ar_N
+        self.td_size = (np.sum(self.td_sizes) + len(self.td_sizes)) * self.td_N
         self.rand_size = 2 * self.rand_N
-        self.nn_size = (self.eln2 * self.eln1 + self.eln2 + self.eln3 * self.eln2 + self.eln3) * self.nn_N
+        self.nn_size = (self.eln2 * self.eln1 + self.eln2 +
+                        self.eln3 * self.eln2 + self.eln3) * self.nn_N
 
         self.ar = EAR(self.ar_N, self.ln)
-        self.td = ETD(self.td_N, self.td_size1, self.td_size2, self.td_size3, self.ln)
+        self.td = ETD(self.td_N, self.td_sizes, self.ln)
         self.rand = ERand(self.rand_N, self.ln)
         self.nn = ENN(self.nn_N, self.eln1, self.eln2, self.eln3, self.ln)
         self.compress_len = self.compress_decoder(self.decoder()).size
-
-        self.clip_lo = -1.1
-        self.clip_hi = 1.1
 
     def decoder(self):
         ret = {'id': self.count}
@@ -149,29 +132,29 @@ class EGA:
 
         ret = {}
         for i in range(1, len(self.ln)):
-            ret['W' + str(i)] = np.zeros(shape=(self.ln[i], self.ln[i - 1]))
-            ret['b' + str(i)] = np.zeros(shape=(self.ln[i], 1))
+            ret['W' + str(i)] = np.zeros(shape=self.ln[i])
+            ret['b' + str(i)] = np.zeros(shape=(self.ln[i][-1]))
 
-        tret = self.ar.decode(decoder)
-        if tret:
-            for i in range(1, len(self.ln)):
-                ret['W' + str(i)] += tret['W' + str(i)]
-                ret['b' + str(i)] += tret['b' + str(i)]
+#         tret = self.ar.decode(decoder)
+#         if tret:
+#             for i in range(1, len(self.lfunc)):
+#                 ret['W' + str(i)] += tret['W' + str(i)]
+#                 ret['b' + str(i)] += tret['b' + str(i)]
         tret = self.td.decode(decoder)
         if tret:
             for i in range(1, len(self.ln)):
                 ret['W' + str(i)] += tret['W' + str(i)]
                 ret['b' + str(i)] += tret['b' + str(i)]
-        tret = self.rand.decode(decoder)
-        if tret:
-            for i in range(1, len(self.ln)):
-                ret['W' + str(i)] += tret['W' + str(i)]
-                ret['b' + str(i)] += tret['b' + str(i)]
-        tret = self.nn.decode(decoder)
-        if tret:
-            for i in range(1, len(self.ln)):
-                ret['W' + str(i)] += tret['W' + str(i)]
-                ret['b' + str(i)] += tret['b' + str(i)]
+#         tret = self.rand.decode(decoder)
+#         if tret:
+#             for i in range(1, len(self.lfunc)):
+#                 ret['W' + str(i)] += tret['W' + str(i)]
+#                 ret['b' + str(i)] += tret['b' + str(i)]
+#         tret = self.nn.decode(decoder)
+#         if tret:
+#             for i in range(1, len(self.lfunc)):
+#                 ret['W' + str(i)] += tret['W' + str(i)]
+#                 ret['b' + str(i)] += tret['b' + str(i)]
 
         for j in range(1, len(self.ln)):
             ret['func' + str(j)] = self.lfunc[j - 1]
@@ -193,13 +176,32 @@ class EGA:
 
         return ret
 
-    def tf_model(self, weights):
-        ret = tf.keras.Sequential()
-        ret.add(tf.keras.layers.InputLayer(input_shape=(20, 20, 2)))
-        ret.add(tf.keras.layers.Conv2D(filters=16, kernel_size=3, activation='relu', padding='same'))
-        ret.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2), strides=(2, 2)))
-        ret.add(tf.keras.layers.Conv2D(filters=4, kernel_size=3, activation='relu', padding='same'))
-        ret.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2), strides=(2, 2)))
+    def get_tf_model(self):
+        model = tf.keras.models.Sequential()
+        model.add(tf.keras.layers.InputLayer(input_shape=self.ln[0]))
+        j = 1
+        for i in range(0, len(self.lfunc)):
+            if self.lfunc[i] == 'pool':
+                model.add(tf.keras.layers.MaxPool2D(2, 2, padding='valid'))
+            elif self.lfunc[i] == 'flatten':
+                model.add(tf.keras.layers.Flatten())
+            else:
+                if len(self.ln[j]) > 2:
+                    model.add(tf.keras.layers.Conv2D(self.ln[j][-1], self.ln[j][0], activation=self.lfunc[i], padding='same'))
+                else:
+                    model.add(tf.keras.layers.Dense(self.ln[j][-1], activation=self.lfunc[i]))
+                j += 1
+        return model
+
+    def set_tf_weights(self, model, weights):
+        j = 1
+        for i in range(0, len(self.lfunc)):
+            if self.lfunc[i] == 'pool' or self.lfunc[i] == 'flatten':
+                pass
+            else:
+                model.layers[i].set_weights([weights['W' + str(j)], weights['b' + str(j)]])
+                j += 1
+        return model
 
     def cross(self, x, y):
         c1 = x.copy()
@@ -215,30 +217,56 @@ class EGA:
     def mut(self, c):
         for i in range(self.compress_len):
             if np.random.random() < self.mut_prob:
-                c[i] += np.random.normal(scale=0.1)
+                c[i] += np.random.normal(scale=1)
         c = self.clip(c)
         return c
 
     def run(self):
+        # pop = np.load('saves/egaPop-default.npy')
         pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
         for p in range(self.pop_size):
             pop[p] = self.compress_decoder(self.decoder())
             pop[p] = self.clip(pop[p])
 
-        for t in range(1, self.iterations + 1):
-            fitness = np.zeros(self.pop_size)
-            for p in range(self.pop_size):
-                J = self.problem.test(self.decode(pop[p]))[0]
-                fitness[p] = J
-            pop = pop[np.argsort(-fitness)]
-            fitness = fitness[np.argsort(-fitness)]
+        model = self.get_tf_model()
 
-            J, steps, score, game_score = self.problem.test(self.decode(pop[0]))
-            i = pop[0][0]
-            # if t % 25 == 0:
-            print('Iter ' + str(t).zfill(3) + '   ' + str(int(i)).zfill(6) + '   ' +
-                  str('{:.2f}'.format(J)).zfill(7) + '   ' + str('{:.2f}'.format(steps)).zfill(7) +
-                  '   ' + str('{:.2f}'.format(score)).zfill(6) + '   ' + str('{:.2f}'.format(game_score)).zfill(7))
+        for t in range(1, self.iterations + 1):
+            start = time.time()
+            fitness = np.zeros(self.pop_size)
+            steps = np.zeros(self.pop_size)
+            # games = np.zeros(self.pop_size)
+            score = np.zeros(self.pop_size)
+            art_score = np.zeros(self.pop_size)
+            move_distributions = np.zeros((self.pop_size, 4))
+
+            for p in range(self.pop_size):
+                model = self.set_tf_weights(model, self.decode(pop[p]))
+                steps[p], score[p], art_score[p], move_distributions[p], _, _, _ = self.problem.test_over_games(model, food_arr=self.food_arr)
+                fitness[p] = art_score[p]
+            sort = np.argsort(-fitness)
+            pop = pop[sort]
+            fitness = fitness[sort]
+            steps = steps[sort]
+            # games = games[sort]
+            score = score[sort]
+            art_score = art_score[sort]
+            move_distributions = move_distributions[sort]
+
+            end = time.time()
+            print('Iter ' + str(t).zfill(3) + '   ' +
+                  str(int(pop[0][0])).zfill(6) + '   ' +
+                  str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
+                  # str('{:.2f}'.format(games[0])).zfill(5) + '   ' +
+                  str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
+                  str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
+                  str(move_distributions[0][0]).zfill(5) + '   ' +
+                  str(move_distributions[0][1]).zfill(5) + '   ' +
+                  str(move_distributions[0][2]).zfill(5) + '   ' +
+                  str(move_distributions[0][3]).zfill(5) + '          ' +
+                  str('{:.2f}'.format(end - start).zfill(6)) + 's')
+
+            if t % 50 == 0:
+                self.problem.test_over_games(self.set_tf_weights(model, self.decode(pop[0])), goal_steps=30, food_arr=self.food_arr, gui=True)
 
             prob = np.array(fitness, copy=True) - min(0, np.amin(fitness))  # prevent negatives
             prob = prob / np.sum(prob)
@@ -274,18 +302,40 @@ class EGA:
                 pop[i + 1][0] = self.count
                 self.count += 1
 
-        model = self.decode(pop[0])
-        _, steps, score, game_score = self.problem.test(model, 1000)
-        print('==================================================')
-        print('Results:   ' + str('{:.2f}'.format(steps)).zfill(7) + '   ' +
-              str('{:.2f}'.format(score)).zfill(6) + '   ' + str('{:.2f}'.format(game_score)).zfill(7))
-        print('==================================================')
-        i = input()
-        self.problem.test(model, 1, 30, gui=True)
-        # np.savez('saves/egaSave-' + self.file_name + '.npz',
-        #          W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
+        np.savez('saves/egaSave-' + self.file_name + '.npz', iterations=self.iterations, pop=pop, food=self.food_arr)
+        self.test(pop, self.food_arr)
 
-    # def test(self, file):
-    #     f = np.load('saves/egaSave-' + file + '.npz')
-        # model = {'W1': f['W1'], 'b1': f['b1'], 'W2': f['W2'], 'b2': f['b2']}
-        # self.problem.test(model, 1000)
+    def test(self, pop, food_arr):
+        weights = self.decode(pop[0])
+        model = self.get_tf_model()
+        model = self.set_tf_weights(model, weights)
+        print('==================================================')
+        steps, score, art_score, move_distributions, steps_arr, score_arr, art_score_arr = self.problem.test_over_games(model, test_games=1, food_arr=food_arr)
+        print('Results Over Preset Food:   ' +
+              str('{:.2f}'.format(steps)).zfill(7) + '   ' +
+              str('{:.2f}'.format(score)).zfill(6) + '   ' +
+              str('{:.2f}'.format(art_score)).zfill(7))
+        steps, score, art_score, move_distributions, steps_arr, score_arr, art_score_arr = self.problem.test_over_games(model, test_games=100)
+        print('Results Over Random Food:   ' +
+              str('{:.2f}'.format(steps)).zfill(7) + '   ' +
+              str('{:.2f}'.format(score)).zfill(6) + '   ' +
+              str('{:.2f}'.format(art_score)).zfill(7))
+        sort = np.argsort(-steps_arr)
+        steps_arr = steps_arr[sort]
+        score_arr = score_arr[sort]
+        art_score_arr = art_score_arr[sort]
+        print('              Best Steps:   ' +
+              str('{:.2f}'.format(steps_arr[0])).zfill(7) + '   ' +
+              str('{:.2f}'.format(score_arr[0])).zfill(6) + '   ' +
+              str('{:.2f}'.format(art_score_arr[0])).zfill(7))
+        sort = np.argsort(-score_arr)
+        steps_arr = steps_arr[sort]
+        score_arr = score_arr[sort]
+        art_score_arr = art_score_arr[sort]
+        print('              Best Score:   ' +
+              str('{:.2f}'.format(steps_arr[0])).zfill(7) + '   ' +
+              str('{:.2f}'.format(score_arr[0])).zfill(6) + '   ' +
+              str('{:.2f}'.format(art_score_arr[0])).zfill(7))
+        print('==================================================')
+        input()
+        self.problem.test_over_games(model, goal_steps=30, gui=True)

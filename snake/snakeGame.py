@@ -1,14 +1,22 @@
 import curses
-from random import randint
+import numpy as np
 import time
 
 
 class SnakeGame:
-    def __init__(self, board_width=20, board_height=20, gui=False):
+    def __init__(self, board_width=20, board_height=20, food_arr=None, gui=False):
         self.score = 0
         self.done = False
         self.board = {'width': board_width, 'height': board_height}
         self.gui = gui
+
+        if food_arr is None:
+            randx = np.random.randint(1, self.board['width'], 3000)
+            randy = np.random.randint(1, self.board['height'], 3000)
+            self.food_arr = [[i, j] for i, j in zip(randx, randy)]
+        else:
+            self.food_arr = food_arr
+        self.food_count = 0
 
     def start(self):
         self.snake_init()
@@ -18,10 +26,13 @@ class SnakeGame:
         return self.generate_observations()
 
     def snake_init(self):
-        x = randint(5, self.board['width'] - 5)
-        y = randint(5, self.board['height'] - 5)
+        x = int(self.board['width'] / 2)
+        y = int(self.board['height'] / 2)
+        # x = randint(5, self.board['width'] - 5)
+        # y = randint(5, self.board['height'] - 5)
         self.snake = []
-        vertical = randint(0, 1) == 0
+        # vertical = randint(0, 1) == 0
+        vertical = 0
         for i in range(3):
             point = [x + i, y] if vertical else [x, y + i]
             self.snake.insert(0, point)
@@ -29,7 +40,11 @@ class SnakeGame:
     def generate_food(self):
         food = []
         while food == []:
-            food = [randint(1, self.board['width']), randint(1, self.board["height"])]
+            food = self.food_arr[self.food_count]
+            self.food_count += 1
+            if self.food_count >= 3000:
+                self.food_count = 0
+            # food = [randint(1, self.board['width']), randint(1, self.board["height"])]
             if food in self.snake:
                 food = []
         self.food = food
@@ -95,7 +110,7 @@ class SnakeGame:
                 self.snake[0][0] == self.board['width'] + 1 or
                 self.snake[0][1] == 0 or
                 self.snake[0][1] == self.board['height'] + 1 or
-                self.snake[0] in self.snake[1:-1]):
+                self.snake[0] in self.snake[1:]):
             self.done = True
 
     def generate_observations(self):
@@ -105,15 +120,3 @@ class SnakeGame:
         if self.gui:
             time.sleep(1)
             curses.endwin()
-
-
-if __name__ == '__main__':
-    gui = False
-    game = SnakeGame(gui=gui)
-    game.start()
-    for _ in range(20):
-        done, score, snake, food = game.step(randint(0, 3))
-        if done:
-            break
-    if gui:
-        game.end_game()

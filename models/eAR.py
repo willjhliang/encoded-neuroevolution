@@ -15,6 +15,7 @@ class EAR:
             for j in range(1, len(self.ln)):
                 ret['a' + str(j) + str(i)] = np.random.rand(1) * 2 - 1
                 ret['c' + str(j) + str(i)] = np.random.rand(1) * 2 - 1
+                ret['C' + str(j) + str(i)] = np.array([1]).reshape(1, 1)
 
         return ret
 
@@ -24,8 +25,10 @@ class EAR:
             for j in range(1, len(self.ln)):
                 a = decoder['a' + str(j) + str(i)]
                 c = decoder['c' + str(j) + str(i)]
+                C = decoder['C' + str(j) + str(i)]
                 ret = np.concatenate((ret, a))
                 ret = np.concatenate((ret, c))
+                ret = np.concatenate((ret, C))
 
         return ret
 
@@ -35,8 +38,10 @@ class EAR:
             for j in range(1, len(self.ln)):
                 a, decoder = np.split(decoder, [1])
                 c, decoder = np.split(decoder, [1])
+                C, deocder = np.split(decoder, [1])
                 ret['a' + str(j) + str(i)] = a.reshape(1)
                 ret['c' + str(j) + str(i)] = c.reshape(1)
+                ret['C' + str(j) + str(i)] = c.reshape(1)
 
         return ret
 
@@ -49,11 +54,13 @@ class EAR:
             for j in range(1, len(self.ln)):
                 a = decoder['a' + str(j) + str(i)]
                 c = decoder['c' + str(j) + str(i)]
+                C = decoder['C' + str(j) + str(i)]
 
                 L = np.zeros(shape=(self.ln[j], self.ln[j - 1] + 1)).flatten()
                 L[0] = c
                 for k in range(1, L.shape[0]):
                     L[k] = L[k - 1] * a
+                L *= C
 
                 L = L.reshape(self.ln[j], self.ln[j - 1] + 1)
                 ret['W' + str(j)] += L[:, :-1]
