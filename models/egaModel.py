@@ -10,6 +10,7 @@ from eTD import ETD
 from eRand import ERand
 from eNN import ENN
 
+import os
 import numpy as np
 import tensorflow as tf
 import time
@@ -17,8 +18,8 @@ import time
 
 class EGA:
     def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100,
-                 pop_size=100, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.7,
-                 par_ratio=0.3, file_name='default'):
+                 pop_size=200, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.7,
+                 par_ratio=0.3, file_name='default', ckpt_period=25):
         self.iterations = iterations
         self.pop_size = pop_size
         self.mut_prob = mut_prob
@@ -28,15 +29,16 @@ class EGA:
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
         self.file_name = file_name
+        self.folder_name = 'saves/egaSave-' + self.file_name
+        if not os.path.isdir(self.folder_name):
+            os.mkdir(self.folder_name)
+        self.ckpt_period = ckpt_period
 
         self.problem = None
         if problem == 'Score':
             self.problem = ScoreProb()
         if problem == 'Action':
             self.problem = ActionProb()
-        randx = np.random.randint(1, 20, 3000)
-        randy = np.random.randint(1, 20, 3000)
-        self.food_arr = [[i, j] for i, j in zip(randx, randy)]  # Test with preset food positions
 
         self.ln = [[24, 24, 6], [5, 5, 6, 32], [3, 3, 32, 16], [3, 3, 16, 8],
                    [288, 128], [128, 128], [128, 64], [64, 64],
@@ -222,15 +224,27 @@ class EGA:
         return c
 
     def run(self):
-        # pop = np.load('saves/egaPop-default.npy')
-        pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
-        for p in range(self.pop_size):
-            pop[p] = self.compress_decoder(self.decoder())
-            pop[p] = self.clip(pop[p])
+        history = open(self.folder_name + '/hist.txt', 'w+')
+
+        foo = input('Load previous checkpoint? (y/n) ')
+        if foo == 'y':
+            load_name = input('Save name: ')
+            start_iter = int(input('Iteration: '))
+            pop = np.load('saves/egaSave-' + load_name + '/iter-' + str(start_iter) + '.npy')
+            food_arr = np.load('saves/egaSave-' + load_name + '/food.npy').tolist()
+        else:
+            start_iter = 1
+            pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
+            for p in range(self.pop_size):
+                pop[p] = self.compress_decoder(self.decoder())
+                pop[p] = self.clip(pop[p])
+            randx = np.random.randint(1, 20, 3000)
+            randy = np.random.randint(1, 20, 3000)
+            food_arr = [[i, j] for i, j in zip(randx, randy)]  # Test with preset food positions
+        np.save(self.folder_name + '/food.npy', food_arr)
 
         model = self.get_tf_model()
-
-        for t in range(1, self.iterations + 1):
+        for t in range(start_iter, self.iterations + 1):
             start = time.time()
             fitness = np.zeros(self.pop_size)
             steps = np.zeros(self.pop_size)
@@ -241,7 +255,7 @@ class EGA:
 
             for p in range(self.pop_size):
                 model = self.set_tf_weights(model, self.decode(pop[p]))
-                steps[p], score[p], art_score[p], move_distributions[p], _, _, _ = self.problem.test_over_games(model, food_arr=self.food_arr)
+                steps[p], score[p], art_score[p], move_distributions[p], _, _, _ = self.problem.test_over_games(model, food_arr=food_arr)
                 fitness[p] = art_score[p]
             sort = np.argsort(-fitness)
             pop = pop[sort]
@@ -252,21 +266,40 @@ class EGA:
             art_score = art_score[sort]
             move_distributions = move_distributions[sort]
 
-            end = time.time()
-            print('Iter ' + str(t).zfill(3) + '   ' +
-                  str(int(pop[0][0])).zfill(6) + '   ' +
-                  str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
-                  # str('{:.2f}'.format(games[0])).zfill(5) + '   ' +
-                  str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
-                  str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
-                  str(move_distributions[0][0]).zfill(5) + '   ' +
-                  str(move_distributions[0][1]).zfill(5) + '   ' +
-                  str(move_distributions[0][2]).zfill(5) + '   ' +
-                  str(move_distributions[0][3]).zfill(5) + '          ' +
-                  str('{:.2f}'.format(end - start).zfill(6)) + 's')
+            avg_steps = 1.0 * np.sum(steps) / self.pop_size
+            avg_score = 1.0 * np.sum(score) / self.pop_size
+            avg_art_score = 1.0 * np.sum(art_score) / self.pop_size
+            history.write(str(t).zfill(6) + '     ' +
+                          str(int(pop[0][0])).zfill(6) + '   ' +
+                          str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
+                          str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
+                          str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
+                          str('{:.2f}'.format(avg_steps)).zfill(7) + '   ' +
+                          str('{:.2f}'.format(avg_score)).zfill(6) + '   ' +
+                          str('{:.2f}'.format(avg_art_score)).zfill(7) + '\n')
+            history.flush()
 
-            if t % 50 == 0:
-                self.problem.test_over_games(self.set_tf_weights(model, self.decode(pop[0])), goal_steps=30, food_arr=self.food_arr, gui=True)
+            end = time.time()
+            if t % self.ckpt_period == 0:
+                np.save(self.folder_name + '/iter-' + str(t) + '.npy', pop)
+                prev_file = self.folder_name + '/iter-' + str(t - 10 * self.ckpt_period) + '.npy'
+                if os.path.exists(prev_file):
+                    os.remove(prev_file)
+
+                print('Iter ' + str(t).zfill(6) + '   ' +
+                      str(int(pop[0][0])).zfill(6) + '   ' +
+                      str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
+                      # str('{:.2f}'.format(games[0])).zfill(5) + '   ' +
+                      str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
+                      str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
+                      str(move_distributions[0][0]).zfill(5) + '   ' +
+                      str(move_distributions[0][1]).zfill(5) + '   ' +
+                      str(move_distributions[0][2]).zfill(5) + '   ' +
+                      str(move_distributions[0][3]).zfill(5) + '          ' +
+                      str('{:.2f}'.format(end - start).zfill(6)) + 's')
+
+            # if t % 50 == 0:
+            #     self.problem.test_over_games(self.set_tf_weights(model, self.decode(pop[0])), goal_steps=30, food_arr=food_arr, gui=True)
 
             prob = np.array(fitness, copy=True) - min(0, np.amin(fitness))  # prevent negatives
             prob = prob / np.sum(prob)
@@ -302,8 +335,9 @@ class EGA:
                 pop[i + 1][0] = self.count
                 self.count += 1
 
-        np.savez('saves/egaSave-' + self.file_name + '.npz', iterations=self.iterations, pop=pop, food=self.food_arr)
-        self.test(pop, self.food_arr)
+        history.close()
+        np.savez(self.folder_name + '/final.npz', iterations=self.iterations, pop=pop, food=food_arr)
+        self.test(pop, food_arr)
 
     def test(self, pop, food_arr):
         weights = self.decode(pop[0])
