@@ -2,8 +2,9 @@
 import sys
 sys.path.insert(0, '../problems')
 
-from scoreProblem import ScoreProb
-from actionProblem import ActionProb
+from snakeScore import SnakeScore
+from snakeAction import SnakeAction
+from mnist import MNIST
 
 from eAR import EAR
 from eTD import ETD
@@ -20,6 +21,8 @@ class EGA:
     def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100,
                  pop_size=200, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.7,
                  par_ratio=0.3, file_name='default', ckpt_period=25):
+
+        # Initializations
         self.iterations = iterations
         self.pop_size = pop_size
         self.mut_prob = mut_prob
@@ -34,98 +37,145 @@ class EGA:
             os.mkdir(self.folder_name)
         self.ckpt_period = ckpt_period
 
+        # Setting problem
         self.problem = None
-        if problem == 'Score':
-            self.problem = ScoreProb()
-        if problem == 'Action':
-            self.problem = ActionProb()
+        if problem == 'SnakeScore':
+            self.problem = SnakeScore()
+        if problem == 'SnakeAction':
+            self.problem = SnakeAction()
+        if problem == 'MNIST':
+            self.problem = MNIST()
+        self.problem_name = problem
 
-        self.ln = [[24, 24, 6], [5, 5, 6, 32], [3, 3, 32, 16], [3, 3, 16, 8],
-                   [288, 128], [128, 128], [128, 64], [64, 64],
-                   [64, 16], [16, 16], [16, 4]]
+        # Network architecture
+        # self.layers = [['input', 24, 24, 6],
+        #                ['conv', 5, 32, 'relu', 'same'],
+        #                ['pool'],
+        #                ['conv', 3, 16, 'relu', 'same'],
+        #                ['pool'],
+        #                ['conv', 3, 8, 'relu', 'save'],
+        #                ['flatten'],
+        #                ['dense', 128, 'relu'],
+        #                ['dense', 128, 'relu'],
+        #                ['dense', 64, 'relu'],
+        #                ['dense', 64, 'relu'],
+        #                ['dense', 16, 'relu'],
+        #                ['dense', 16, 'relu'],
+        #                ['dense', 4, 'linear']]
+        self.layers = [['input', 28, 28, 1],  # official LeNet-5 input is 32 x 32
+                       ['conv', 5, 6, 'tanh', 'same'],
+                       ['pool'],
+                       ['conv', 5, 16, 'tanh', 'valid'],
+                       ['pool'],
+                       ['flatten'],
+                       ['dense', 120, 'tanh'],
+                       ['dense', 84, 'tanh'],
+                       ['dense', 10, 'linear']]
 
-        self.lfunc = ['relu', 'pool', 'relu', 'pool', 'relu', 'flatten',
-                      'relu', 'relu', 'relu', 'relu',
-                      'relu', 'relu', 'linear']
+        self.layer_shapes, self.layer_sizes = self.get_layer_info()
 
+        # Setting special parameters for decoders
+        # self.td_sizes = [[],
+        #                  [[12, 20, 20], [2, 4, 4]],
+        #                  [],
+        #                  [[16, 16, 18], [2, 2, 4]],
+        #                  [],
+        #                  [[8, 9, 16], [2, 2, 2]],
+        #                  [],
+        #                  [[32, 32, 36], [4, 4, 8]],
+        #                  [[16, 32, 32], [4, 4, 8]],
+        #                  [[16, 16, 32], [4, 4, 4]],
+        #                  [[16, 16, 16], [4, 4, 4]],
+        #                  [[8, 8, 16], [2, 2, 4]],
+        #                  [[4, 8, 8], [2, 2, 4]],
+        #                  [[4, 4, 4], [1, 2, 2]]]
+        self.td_sizes = [[],
+                         [[5, 5, 6], [1, 2, 3]],
+                         [],
+                         [[10, 15, 16], [2, 2, 4]],
+                         [],
+                         [],
+                         [[30, 40, 40], [4, 5, 6]],
+                         [[18, 20, 28], [3, 4, 7]],
+                         [[7, 10, 12], [1, 2, 5]]]
+
+        # Creating decoder methods
+        self.decoder_methods = []
+        if ar_N > 0:  # Outdated
+            self.decoder_methods.append(EAR(ar_N, self.layer_shapes,
+                                            self.layer_sizes))
+        if td_N > 0:
+            self.decoder_methods.append(ETD(td_N, self.td_sizes, self.layer_shapes,
+                                            self.layer_sizes))
+        if rand_N > 0:  # Outdated
+            self.decoder_methods.append(ERand(rand_N, self.layer_shapes,
+                                              self.layer_sizes))
+        if nn_N > 0:  # Outdated
+            self.decoder_methods.append(ENN(nn_N, self.layer_shapes,
+                                            self.layer_sizes))
+
+        # Miscellaneous constants
         self.count = 0
-
-        self.td_N = td_N
-        self.ar_N = ar_N
-        self.rand_N = rand_N
-        self.nn_N = nn_N
-
-        self.td_sizes = [[10, 22, 22], [16, 17, 17], [6, 13, 15],
-                         [32, 34, 34], [16, 24, 43], [17, 18, 27], [13, 16, 20],
-                         [8, 10, 13], [3, 7, 13], [2, 5, 7]]
-
-        self.eln1 = 3
-        self.eln2 = 4
-        self.eln3 = 1
-
-        self.ar_size = (2 * len(self.lfunc)) * self.ar_N
-        self.td_size = (np.sum(self.td_sizes) + len(self.td_sizes)) * self.td_N
-        self.rand_size = 2 * self.rand_N
-        self.nn_size = (self.eln2 * self.eln1 + self.eln2 +
-                        self.eln3 * self.eln2 + self.eln3) * self.nn_N
-
-        self.ar = EAR(self.ar_N, self.ln)
-        self.td = ETD(self.td_N, self.td_sizes, self.ln)
-        self.rand = ERand(self.rand_N, self.ln)
-        self.nn = ENN(self.nn_N, self.eln1, self.eln2, self.eln3, self.ln)
         self.compress_len = self.compress_decoder(self.decoder()).size
+
+    def get_layer_info(self):
+        sizes_ret = [[0, 0]]
+        shapes_ret = [[[0], [0]]]
+        cur = self.layers[0][1:]
+        for i in range(1, len(self.layers)):
+            layer = self.layers[i]
+            if layer[0] == 'conv':
+                sizes_ret.append([layer[1] * layer[1] *
+                                  cur[2] * layer[2],
+                                  layer[2]])
+                shapes_ret.append([[layer[1], layer[1],
+                                    cur[2], layer[2]],
+                                   [layer[2]]])
+                cur[2] = layer[2]
+                if layer[4] == 'valid':
+                    cur[0] -= (layer[1] - 1)
+                    cur[1] -= (layer[1] - 1)
+            if layer[0] == 'pool':
+                sizes_ret.append([0, 0])
+                shapes_ret.append([[0], [0]])
+                cur[0] /= 2
+                cur[1] /= 2
+            if layer[0] == 'flatten':
+                sizes_ret.append([0, 0])
+                shapes_ret.append([[0], [0]])
+                cur = [int(cur[0] * cur[1] * cur[2])]
+            if layer[0] == 'dense':
+                sizes_ret.append([layer[1] * cur[0], layer[1]])
+                shapes_ret.append([[cur[0], layer[1]], [layer[1]]])
+                cur = [layer[1]]
+
+        return shapes_ret, sizes_ret
 
     def decoder(self):
         ret = {'id': self.count}
         self.count += 1
-        tret = self.ar.decoder()
-        for key in tret:
-            ret[key] = tret[key]
-        tret = self.td.decoder()
-        for key in tret:
-            ret[key] = tret[key]
-        tret = self.rand.decoder()
-        for key in tret:
-            ret[key] = tret[key]
-        tret = self.nn.decoder()
-        for key in tret:
-            ret[key] = tret[key]
+
+        for e in self.decoder_methods:
+            tret = e.decoder()
+            for key in tret:
+                ret[key] = tret[key]
 
         return ret
 
     def compress_decoder(self, decoder):
         ret = np.array([decoder['id']])
-        tret = self.ar.compress_decoder(decoder)
-        ret = np.concatenate((ret, tret))
-        tret = self.td.compress_decoder(decoder)
-        ret = np.concatenate((ret, tret))
-        tret = self.rand.compress_decoder(decoder)
-        ret = np.concatenate((ret, tret))
-        tret = self.nn.compress_decoder(decoder)
-        ret = np.concatenate((ret, tret))
+        for e in self.decoder_methods:
+            tret = e.compress_decoder(decoder)
+            ret = np.concatenate((ret, tret))
 
         return ret
 
     def expand_decoder(self, decoder):
         ret = {'id': decoder[0]}
-
-        k = 1
-        tret = self.ar.expand_decoder(decoder[k:k + self.ar_size])
-        for key in tret:
-            ret[key] = tret[key]
-        k += self.ar_size
-        tret = self.td.expand_decoder(decoder[k:k + self.td_size])
-        for key in tret:
-            ret[key] = tret[key]
-        k += self.td_size
-        tret = self.rand.expand_decoder(decoder[k:k + self.rand_size])
-        for key in tret:
-            ret[key] = tret[key]
-        k += self.rand_size
-        tret = self.nn.expand_decoder(decoder[k:k + self.nn_size])
-        for key in tret:
-            ret[key] = tret[key]
-        k += self.nn_size
+        for e in self.decoder_methods:
+            tret, decoder = e.expand_decoder(decoder)
+            for key in tret:
+                ret[key] = tret[key]
 
         return ret
 
@@ -133,77 +183,57 @@ class EGA:
         decoder = self.expand_decoder(decoder)
 
         ret = {}
-        for i in range(1, len(self.ln)):
-            ret['W' + str(i)] = np.zeros(shape=self.ln[i])
-            ret['b' + str(i)] = np.zeros(shape=(self.ln[i][-1]))
+        for i in range(1, len(self.layers)):
+            ret['W' + str(i)] = np.zeros(shape=self.layer_shapes[i][0])
+            ret['b' + str(i)] = np.zeros(shape=self.layer_shapes[i][1])
+            ret['func' + str(i)] = self.layers[i][-1]
 
-#         tret = self.ar.decode(decoder)
-#         if tret:
-#             for i in range(1, len(self.lfunc)):
-#                 ret['W' + str(i)] += tret['W' + str(i)]
-#                 ret['b' + str(i)] += tret['b' + str(i)]
-        tret = self.td.decode(decoder)
-        if tret:
-            for i in range(1, len(self.ln)):
+        for e in self.decoder_methods:
+            tret = e.decode(decoder)
+            for i in range(1, len(self.layers)):
                 ret['W' + str(i)] += tret['W' + str(i)]
                 ret['b' + str(i)] += tret['b' + str(i)]
-#         tret = self.rand.decode(decoder)
-#         if tret:
-#             for i in range(1, len(self.lfunc)):
-#                 ret['W' + str(i)] += tret['W' + str(i)]
-#                 ret['b' + str(i)] += tret['b' + str(i)]
-#         tret = self.nn.decode(decoder)
-#         if tret:
-#             for i in range(1, len(self.lfunc)):
-#                 ret['W' + str(i)] += tret['W' + str(i)]
-#                 ret['b' + str(i)] += tret['b' + str(i)]
-
-        for j in range(1, len(self.ln)):
-            ret['func' + str(j)] = self.lfunc[j - 1]
-
-        return ret
-
-    def clip(self, decoder):
-        ret = np.array([decoder[0]])
-
-        k = 1
-        ret = np.concatenate((ret, self.ar.clip(decoder[k:k + self.ar_size])))
-        k += self.ar_size
-        ret = np.concatenate((ret, self.td.clip(decoder[k:k + self.td_size])))
-        k += self.td_size
-        ret = np.concatenate((ret, self.rand.clip(decoder[k:k + self.rand_size])))
-        k += self.rand_size
-        ret = np.concatenate((ret, self.nn.clip(decoder[k:k + self.nn_size])))
-        k += self.nn_size
 
         return ret
 
     def get_tf_model(self):
         model = tf.keras.models.Sequential()
-        model.add(tf.keras.layers.InputLayer(input_shape=self.ln[0]))
-        j = 1
-        for i in range(0, len(self.lfunc)):
-            if self.lfunc[i] == 'pool':
+        for i in range(0, len(self.layers)):
+            if self.layers[i][0] == 'input':
+                model.add(tf.keras.layers.InputLayer(input_shape=self.layers[i][1:]))
+            if self.layers[i][0] == 'conv':
+                model.add(tf.keras.layers.Conv2D(self.layers[i][2], self.layers[i][1],
+                                                 activation=self.layers[i][3], padding=self.layers[i][4]))
+            if self.layers[i][0] == 'pool':
                 model.add(tf.keras.layers.MaxPool2D(2, 2, padding='valid'))
-            elif self.lfunc[i] == 'flatten':
+            if self.layers[i][0] == 'flatten':
                 model.add(tf.keras.layers.Flatten())
-            else:
-                if len(self.ln[j]) > 2:
-                    model.add(tf.keras.layers.Conv2D(self.ln[j][-1], self.ln[j][0], activation=self.lfunc[i], padding='same'))
-                else:
-                    model.add(tf.keras.layers.Dense(self.ln[j][-1], activation=self.lfunc[i]))
-                j += 1
+            if self.layers[i][0] == 'dense':
+                model.add(tf.keras.layers.Dense(self.layers[i][1], activation=self.layers[i][2]))
+        if self.problem_name == 'MNIST':
+            model.compile(optimizer='adam',
+                          loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                          metrics=['accuracy'])
+
         return model
 
     def set_tf_weights(self, model, weights):
-        j = 1
-        for i in range(0, len(self.lfunc)):
-            if self.lfunc[i] == 'pool' or self.lfunc[i] == 'flatten':
-                pass
-            else:
-                model.layers[i].set_weights([weights['W' + str(j)], weights['b' + str(j)]])
-                j += 1
+        for i in range(0, len(self.layers)):
+            if self.layers[i][0] == 'input' or \
+                    self.layers[i][0] == 'pool' or \
+                    self.layers[i][0] == 'flatten':
+                continue
+            model.layers[i - 1].set_weights([weights['W' + str(i)], weights['b' + str(i)]])
+
         return model
+
+    def clip(self, decoder):
+        ret = np.array([decoder[0]], copy=True)
+        for e in self.decoder_methods:
+            tret, decoder = e.clip(decoder)
+            ret = np.concatenate((ret, tret))
+
+        return ret
 
     def cross(self, x, y):
         c1 = x.copy()
@@ -214,69 +244,92 @@ class EGA:
                 c2[i] = x[i].copy()
         c1 = self.clip(c1)
         c2 = self.clip(c2)
+
         return c1, c2
 
-    def mut(self, c):
-        for i in range(self.compress_len):
-            if np.random.random() < self.mut_prob:
-                c[i] += np.random.normal(scale=1)
-        c = self.clip(c)
-        return c
+    def mut(self, decoder):
+        ret = np.array([decoder[0]], copy=True)
+        for e in self.decoder_methods:
+            tret, decoder = e.mut(decoder[1:], self.mut_prob)
+            ret = np.concatenate((ret, tret))
+        return ret
 
     def run(self):
+        # Preparing records and files
         history = open(self.folder_name + '/hist.txt', 'w+')
-
         foo = input('Load previous checkpoint? (y/n) ')
         if foo == 'y':
             load_name = input('Save name: ')
             start_iter = int(input('Iteration: '))
             pop = np.load('saves/egaSave-' + load_name + '/iter-' + str(start_iter) + '.npy')
-            food_arr = np.load('saves/egaSave-' + load_name + '/food.npy').tolist()
+            if self.problem_name[0:5] == 'Snake':
+                food_arr = np.load('saves/egaSave-' + load_name + '/food.npy').tolist()
         else:
             start_iter = 1
             pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
             for p in range(self.pop_size):
                 pop[p] = self.compress_decoder(self.decoder())
                 pop[p] = self.clip(pop[p])
-            randx = np.random.randint(1, 20, 3000)
-            randy = np.random.randint(1, 20, 3000)
-            food_arr = [[i, j] for i, j in zip(randx, randy)]  # Test with preset food positions
-        np.save(self.folder_name + '/food.npy', food_arr)
+            if self.problem_name[0:5] == 'Snake':
+                randx = np.random.randint(1, 20, 3000)
+                randy = np.random.randint(1, 20, 3000)
+                food_arr = [[i, j] for i, j in zip(randx, randy)]  # Test with preset food positions
+                np.save(self.folder_name + '/food.npy', food_arr)
 
         model = self.get_tf_model()
         for t in range(start_iter, self.iterations + 1):
             start = time.time()
             fitness = np.zeros(self.pop_size)
-            steps = np.zeros(self.pop_size)
-            # games = np.zeros(self.pop_size)
-            score = np.zeros(self.pop_size)
-            art_score = np.zeros(self.pop_size)
-            move_distributions = np.zeros((self.pop_size, 4))
+            if self.problem_name == 'MNIST':
+                cce = np.zeros(self.pop_size)
+                acc = np.zeros(self.pop_size)
+            if self.problem_name[0:5] == 'Snake':
+                steps = np.zeros(self.pop_size)
+                score = np.zeros(self.pop_size)
+                art_score = np.zeros(self.pop_size)
+                move_distributions = np.zeros((self.pop_size, 4))
 
             for p in range(self.pop_size):
                 model = self.set_tf_weights(model, self.decode(pop[p]))
-                steps[p], score[p], art_score[p], move_distributions[p], _, _, _ = self.problem.test_over_games(model, food_arr=food_arr)
-                fitness[p] = art_score[p]
+                if self.problem_name == 'MNIST':
+                    cce[p], acc[p] = self.problem.test(model)
+                    fitness[p] = cce[p]
+                if self.problem_name[0:5] == 'Snake':
+                    steps[p], score[p], art_score[p], move_distributions[p], _, _, _ \
+                        = self.problem.test(model, food_arr=food_arr)
+                    fitness[p] = art_score[p]
             sort = np.argsort(-fitness)
             pop = pop[sort]
             fitness = fitness[sort]
-            steps = steps[sort]
-            # games = games[sort]
-            score = score[sort]
-            art_score = art_score[sort]
-            move_distributions = move_distributions[sort]
+            if self.problem_name == 'MNIST':
+                cce = cce[sort]
+                acc = acc[sort]
+            if self.problem_name[0:5] == 'Snake':
+                steps = steps[sort]
+                score = score[sort]
+                art_score = art_score[sort]
+                move_distributions = move_distributions[sort]
 
-            avg_steps = 1.0 * np.sum(steps) / self.pop_size
-            avg_score = 1.0 * np.sum(score) / self.pop_size
-            avg_art_score = 1.0 * np.sum(art_score) / self.pop_size
-            history.write(str(t).zfill(6) + '     ' +
-                          str(int(pop[0][0])).zfill(6) + '   ' +
-                          str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
-                          str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
-                          str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
-                          str('{:.2f}'.format(avg_steps)).zfill(7) + '   ' +
-                          str('{:.2f}'.format(avg_score)).zfill(6) + '   ' +
-                          str('{:.2f}'.format(avg_art_score)).zfill(7) + '\n')
+            if self.problem_name == 'MNIST':
+                avg_cce = 1.0 * np.sum(cce) / self.pop_size
+                avg_acc = 1.0 * np.sum(acc) / self.pop_size
+                history.write(str(t).zfill(6) + '     ' +
+                              str('{:.2f}'.format(cce[0])).zfill(3) + '   ' +
+                              str('{:.2f}'.format(acc[0])).zfill(5) + '   ' +
+                              str('{:.2f}'.format(avg_cce)).zfill(3) + '   ' +
+                              str('{:.2f}'.format(avg_acc)).zfill(5) + '\n')
+            if self.problem_name[0:5] == 'Snake':
+                avg_steps = 1.0 * np.sum(steps) / self.pop_size
+                avg_score = 1.0 * np.sum(score) / self.pop_size
+                avg_art_score = 1.0 * np.sum(art_score) / self.pop_size
+                history.write(str(t).zfill(6) + '     ' +
+                              str(int(pop[0][0])).zfill(6) + '   ' +
+                              str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
+                              str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
+                              str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
+                              str('{:.2f}'.format(avg_steps)).zfill(7) + '   ' +
+                              str('{:.2f}'.format(avg_score)).zfill(6) + '   ' +
+                              str('{:.2f}'.format(avg_art_score)).zfill(7) + '\n')
             history.flush()
 
             end = time.time()
@@ -286,23 +339,27 @@ class EGA:
                 if os.path.exists(prev_file):
                     os.remove(prev_file)
 
-                print('Iter ' + str(t).zfill(6) + '   ' +
-                      str(int(pop[0][0])).zfill(6) + '   ' +
-                      str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
-                      # str('{:.2f}'.format(games[0])).zfill(5) + '   ' +
-                      str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
-                      str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
-                      str(move_distributions[0][0]).zfill(5) + '   ' +
-                      str(move_distributions[0][1]).zfill(5) + '   ' +
-                      str(move_distributions[0][2]).zfill(5) + '   ' +
-                      str(move_distributions[0][3]).zfill(5) + '          ' +
-                      str('{:.2f}'.format(end - start).zfill(6)) + 's')
-
-            # if t % 50 == 0:
-            #     self.problem.test_over_games(self.set_tf_weights(model, self.decode(pop[0])), goal_steps=30, food_arr=food_arr, gui=True)
+                if self.problem_name == 'MNIST':
+                    print(str(t).zfill(6) + '     ' +
+                          str('{:.2f}'.format(cce[0])).zfill(3) + '   ' +
+                          str('{:.2f}'.format(acc[0])).zfill(5) + '   ' +
+                          str('{:.2f}'.format(end - start).zfill(6)) + 's')
+                if self.problem_name[0:5] == 'Snake':
+                    print('Iter ' + str(t).zfill(6) + '   ' +
+                          str(int(pop[0][0])).zfill(6) + '   ' +
+                          str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
+                          str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
+                          str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
+                          str(move_distributions[0][0]).zfill(5) + '   ' +
+                          str(move_distributions[0][1]).zfill(5) + '   ' +
+                          str(move_distributions[0][2]).zfill(5) + '   ' +
+                          str(move_distributions[0][3]).zfill(5) + '          ' +
+                          str('{:.2f}'.format(end - start).zfill(6)) + 's')
 
             prob = np.array(fitness, copy=True) - min(0, np.amin(fitness))  # prevent negatives
             prob = prob / np.sum(prob)
+            if self.problem_name == 'MNIST':
+                prob = 1 - prob  # Smaller is better
             cum_prob = np.cumsum(prob)
             par = np.array([np.zeros(self.compress_len)] * self.par_size)
             for i in range(self.elite_size):
@@ -344,32 +401,41 @@ class EGA:
         model = self.get_tf_model()
         model = self.set_tf_weights(model, weights)
         print('==================================================')
-        steps, score, art_score, move_distributions, steps_arr, score_arr, art_score_arr = self.problem.test_over_games(model, test_games=1, food_arr=food_arr)
-        print('Results Over Preset Food:   ' +
-              str('{:.2f}'.format(steps)).zfill(7) + '   ' +
-              str('{:.2f}'.format(score)).zfill(6) + '   ' +
-              str('{:.2f}'.format(art_score)).zfill(7))
-        steps, score, art_score, move_distributions, steps_arr, score_arr, art_score_arr = self.problem.test_over_games(model, test_games=100)
-        print('Results Over Random Food:   ' +
-              str('{:.2f}'.format(steps)).zfill(7) + '   ' +
-              str('{:.2f}'.format(score)).zfill(6) + '   ' +
-              str('{:.2f}'.format(art_score)).zfill(7))
-        sort = np.argsort(-steps_arr)
-        steps_arr = steps_arr[sort]
-        score_arr = score_arr[sort]
-        art_score_arr = art_score_arr[sort]
-        print('              Best Steps:   ' +
-              str('{:.2f}'.format(steps_arr[0])).zfill(7) + '   ' +
-              str('{:.2f}'.format(score_arr[0])).zfill(6) + '   ' +
-              str('{:.2f}'.format(art_score_arr[0])).zfill(7))
-        sort = np.argsort(-score_arr)
-        steps_arr = steps_arr[sort]
-        score_arr = score_arr[sort]
-        art_score_arr = art_score_arr[sort]
-        print('              Best Score:   ' +
-              str('{:.2f}'.format(steps_arr[0])).zfill(7) + '   ' +
-              str('{:.2f}'.format(score_arr[0])).zfill(6) + '   ' +
-              str('{:.2f}'.format(art_score_arr[0])).zfill(7))
+        if self.problem_name == 'MNIST':
+            cce, acc = self.problem.test(model)
+            print('Results:   ' +
+                  str('{:.2f}'.format(cce[0])).zfill(3) + '   ' +
+                  str('{:.2f}'.format(acc[0])).zfill(5))
+        if self.problem_name[0:5] == 'Snake':
+            steps, score, art_score, move_distributions, steps_arr, score_arr, art_score_arr = \
+                self.problem.test(model, test_games=1, food_arr=food_arr)
+            print('Results Over Preset Food:   ' +
+                  str('{:.2f}'.format(steps)).zfill(7) + '   ' +
+                  str('{:.2f}'.format(score)).zfill(6) + '   ' +
+                  str('{:.2f}'.format(art_score)).zfill(7))
+            steps, score, art_score, move_distributions, steps_arr, score_arr, art_score_arr = \
+                self.problem.test(model, test_games=100)
+            print('Results Over Random Food:   ' +
+                  str('{:.2f}'.format(steps)).zfill(7) + '   ' +
+                  str('{:.2f}'.format(score)).zfill(6) + '   ' +
+                  str('{:.2f}'.format(art_score)).zfill(7))
+            sort = np.argsort(-steps_arr)
+            steps_arr = steps_arr[sort]
+            score_arr = score_arr[sort]
+            art_score_arr = art_score_arr[sort]
+            print('              Best Steps:   ' +
+                  str('{:.2f}'.format(steps_arr[0])).zfill(7) + '   ' +
+                  str('{:.2f}'.format(score_arr[0])).zfill(6) + '   ' +
+                  str('{:.2f}'.format(art_score_arr[0])).zfill(7))
+            sort = np.argsort(-score_arr)
+            steps_arr = steps_arr[sort]
+            score_arr = score_arr[sort]
+            art_score_arr = art_score_arr[sort]
+            print('              Best Score:   ' +
+                  str('{:.2f}'.format(steps_arr[0])).zfill(7) + '   ' +
+                  str('{:.2f}'.format(score_arr[0])).zfill(6) + '   ' +
+                  str('{:.2f}'.format(art_score_arr[0])).zfill(7))
         print('==================================================')
-        input()
-        self.problem.test_over_games(model, goal_steps=30, gui=True)
+        if self.problem_name[0:5] == 'Snake':
+            input()
+            self.problem.test(model, goal_steps=30, gui=True)

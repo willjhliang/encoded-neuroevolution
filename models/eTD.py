@@ -2,30 +2,34 @@ import numpy as np
 
 
 class ETD:
-    # def __init__(self, td_N, td_size1, td_size2, td_size3, ln):
-    def __init__(self, td_N, td_sizes, ln):
-        self.ln = ln
+    def __init__(self, td_N, td_sizes, layer_shapes, layer_sizes):
+        self.layer_shapes = layer_shapes
+        self.layer_sizes = layer_sizes
         self.td_N = td_N
-        # self.td_size1 = td_size1
-        # self.td_size2 = td_size2
-        # self.td_size3 = td_size3
         self.td_sizes = td_sizes
+        self.size = len(self.compress_decoder(self.decoder()))
 
-        self.clip_lo = -1
+        self.noclip = np.array([])
+        for j in range(td_N):
+            for i in td_sizes:
+                if i == []:
+                    continue
+                self.noclip = np.concatenate((self.noclip, np.zeros(np.sum(i))))
+                self.noclip = np.concatenate((self.noclip, np.ones(4)))
+        self.clip_lo = 0
         self.clip_hi = 1
 
     def decoder(self):
         ret = {}
         for i in range(self.td_N):
             for j in range(len(self.td_sizes)):
-                ret['V1' + str(j) + str(i)] = np.random.randn(self.td_sizes[j][0], 1)
-                ret['V2' + str(j) + str(i)] = np.random.randn(self.td_sizes[j][1], 1)
-                ret['V3' + str(j) + str(i)] = np.random.randn(self.td_sizes[j][2], 1)
-                ret['C' + str(j) + str(i)] = np.array([0.1 / self.td_N]).reshape(1, 1)
-                # ret['V1' + str(i)] = np.random.randn(self.td_size1, 1)
-                # ret['V2' + str(i)] = np.random.randn(self.td_size2, 1)
-                # ret['V3' + str(i)] = np.random.randn(self.td_size3, 1)
-                # ret['C' + str(i)] = np.array([1]).reshape(1, 1)
+                if self.td_sizes[j] == []:
+                    continue
+                for num, typ in enumerate(['W', 'b']):
+                    for k in range(1, 4):
+                        ret[typ + 'V' + str(k) + str(j) + str(i)] = np.random.randn(self.td_sizes[j][num][k - 1], 1)
+                    ret[typ + 'a' + str(j) + str(i)] = np.zeros((1, 1))
+                    ret[typ + 'c' + str(j) + str(i)] = np.array([0.1 / self.td_N]).reshape(1, 1)
 
         return ret
 
@@ -33,18 +37,16 @@ class ETD:
         ret = np.array([])
         for i in range(self.td_N):
             for j in range(len(self.td_sizes)):
-                V1 = decoder['V1' + str(j) + str(i)][:, 0]
-                V2 = decoder['V2' + str(j) + str(i)][:, 0]
-                V3 = decoder['V3' + str(j) + str(i)][:, 0]
-                C = decoder['C' + str(j) + str(i)][:, 0]
-                # V1 = decoder['V1' + str(i)][:, 0]
-                # V2 = decoder['V2' + str(i)][:, 0]
-                # V3 = decoder['V3' + str(i)][:, 0]
-                # C = decoder['C' + str(i)][:, 0]
-                ret = np.concatenate((ret, V1))
-                ret = np.concatenate((ret, V2))
-                ret = np.concatenate((ret, V3))
-                ret = np.concatenate((ret, C))
+                if self.td_sizes[j] == []:
+                    continue
+                for typ in ['W', 'b']:
+                    for k in range(1, 4):
+                        V = decoder[typ + 'V' + str(k) + str(j) + str(i)][:, 0]
+                        ret = np.concatenate((ret, V))
+                    a = decoder[typ + 'a' + str(j) + str(i)][:, 0]
+                    c = decoder[typ + 'c' + str(j) + str(i)][:, 0]
+                    ret = np.concatenate((ret, a))
+                    ret = np.concatenate((ret, c))
 
         return ret
 
@@ -52,60 +54,62 @@ class ETD:
         ret = {}
         for i in range(self.td_N):
             for j in range(len(self.td_sizes)):
-                V1, decoder = np.split(decoder, [self.td_sizes[j][0]])
-                V2, decoder = np.split(decoder, [self.td_sizes[j][1]])
-                V3, decoder = np.split(decoder, [self.td_sizes[j][2]])
-                C, decoder = np.split(decoder, [1])
-                ret['V1' + str(j) + str(i)] = V1.reshape(self.td_sizes[j][0], 1)
-                ret['V2' + str(j) + str(i)] = V2.reshape(self.td_sizes[j][1], 1)
-                ret['V3' + str(j) + str(i)] = V3.reshape(self.td_sizes[j][2], 1)
-                ret['C' + str(j) + str(i)] = C.reshape(1, 1)
-                # V1, decoder = np.split(decoder, [self.td_size1 * 1])
-                # V2, decoder = np.split(decoder, [self.td_size2 * 1])
-                # V3, decoder = np.split(decoder, [self.td_size3 * 1])
-                # C, decoder = np.split(decoder, [1 * 1])
-                # ret['V1' + str(i)] = V1.reshape(self.td_size1, 1)
-                # ret['V2' + str(i)] = V2.reshape(self.td_size2, 1)
-                # ret['V3' + str(i)] = V3.reshape(self.td_size3, 1)
-                # ret['C' + str(i)] = C.reshape(1, 1)
+                if self.td_sizes[j] == []:
+                    continue
+                for num, typ in enumerate(['W', 'b']):
+                    for k in range(1, 4):
+                        V, decoder = np.split(decoder,
+                                              [self.td_sizes[j][num][k - 1]])
+                        ret[typ + 'V' + str(k) + str(j) + str(i)] = V.reshape(self.td_sizes[j][num][k - 1], 1)
+                    a, decoder = np.split(decoder, [1])
+                    ret[typ + 'a' + str(j) + str(i)] = a.reshape(1, 1)
+                    c, decoder = np.split(decoder, [1])
+                    ret[typ + 'c' + str(j) + str(i)] = c.reshape(1, 1)
 
-        return ret
+        return ret, decoder
 
     def decode(self, decoder):
         ret = {}
-        for i in range(1, len(self.ln)):
-            ret['W' + str(i)] = np.zeros(shape=self.ln[i])
-            ret['b' + str(i)] = np.zeros(shape=(self.ln[i][-1]))
+        for i in range(1, len(self.layer_shapes)):
+            ret['W' + str(i)] = np.zeros(shape=self.layer_shapes[i][0])
+            ret['b' + str(i)] = np.zeros(shape=self.layer_shapes[i][1])
         for i in range(self.td_N):
             for j in range(len(self.td_sizes)):
-                V1 = decoder['V1' + str(j) + str(i)]
-                V2 = decoder['V2' + str(j) + str(i)]
-                V3 = decoder['V3' + str(j) + str(i)]
-                C = decoder['C' + str(j) + str(i)]
-                # V1 = decoder['V1' + str(i)]
-                # V2 = decoder['V2' + str(i)]
-                # V3 = decoder['V3' + str(i)]
-                # C = decoder['C' + str(i)]
-                T = np.dot(V1, V2.T)
-                T = T[..., None] * V3[:, 0]
-                T = T * C
-                T = T.flatten()
+                if self.td_sizes[j] == []:
+                    continue
+                for num, typ in enumerate(['W', 'b']):
+                    V1 = decoder[typ + 'V1' + str(j) + str(i)]
+                    V2 = decoder[typ + 'V2' + str(j) + str(i)]
+                    V3 = decoder[typ + 'V3' + str(j) + str(i)]
+                    a = decoder[typ + 'a' + str(j) + str(i)]
+                    c = decoder[typ + 'c' + str(j) + str(i)]
 
-                L, T = np.split(T, [np.prod(self.ln[j + 1])])
-                ret['W' + str(j + 1)] += L.reshape(self.ln[j + 1])
-                L, T = np.split(T, [self.ln[j + 1][-1]])
-                ret['b' + str(j + 1)] += L.reshape(self.ln[j + 1][-1])
+                    T = np.dot(V1, V2.T)
+                    T = T[..., None] * V3[:, 0]
+                    T = T * a + c
+                    T = T.flatten()
 
-                # for i in range(1, len(self.ln)):
-                #     L, T = np.split(T, [np.prod(self.ln[i])])
-                #     ret['W' + str(i)] += L.reshape(self.ln[i])
-                #     L, T = np.split(T, [self.ln[i][-1]])
-                #     ret['b' + str(i)] += L.reshape(self.ln[i][-1])
+                    L, T = np.split(T, [np.prod(self.layer_sizes[j][num])])
+                    ret[typ + str(j)] += L.reshape(self.layer_shapes[j][num])
 
         return ret
 
     def clip(self, x):
-        # x[x < self.clip_lo] = self.clip_lo
-        # x[x > self.clip_hi] = self.clip_hi
+        x, y = np.split(x, [self.size])
+        z = x[self.noclip == 0]
+        z[z < self.clip_lo] = self.clip_lo
+        z[z > self.clip_hi] = self.clip_hi
+        x[self.noclip == 0] = z
 
-        return x
+        return x, y
+
+    def mut(self, x, prob):
+        x, y = np.split(x, [self.size])
+        rand = np.random.rand(self.size)
+        mut = x[rand < prob]
+        mut_noclip = self.noclip[rand < prob]
+        mut[mut_noclip == 0] = np.random.uniform()
+        mut[mut_noclip == 1] += np.random.normal(scale=10)
+        x[rand < prob] = mut
+
+        return x, y
