@@ -2,11 +2,12 @@ import numpy as np
 
 
 class ETD:
-    def __init__(self, td_N, td_sizes, layer_shapes, layer_sizes):
+    def __init__(self, td_N, td_sizes, layer_shapes, layer_sizes, mut_scale):
         self.layer_shapes = layer_shapes
         self.layer_sizes = layer_sizes
         self.td_N = td_N  # Same as rank
         self.td_sizes = td_sizes
+        self.mut_scale = mut_scale
 
         self.compressed_type = np.array([])
         for layer in range(len(self.td_sizes)):
@@ -133,11 +134,13 @@ class ETD:
         rand = np.random.rand(self.size)
         mut = x[rand < prob]
         mut_clip = self.compressed_type[rand < prob]
-        mut[mut_clip == 'V'] = np.random.uniform(-1, 1,
+        # mut[mut_clip == 'V'] = np.random.uniform(-1, 1,
+        #                                          np.shape(mut[mut_clip == 'V']))
+        mut[mut_clip == 'V'] += np.random.normal(0, 0.01,
                                                  np.shape(mut[mut_clip == 'V']))
-        mut[mut_clip == 'a'] += np.random.normal(0, 1,
+        mut[mut_clip == 'a'] += np.random.normal(0, self.mut_scale,
                                                  np.shape(mut[mut_clip == 'a']))
-        mut[mut_clip == 'b'] += np.random.normal(0, 1,
+        mut[mut_clip == 'b'] += np.random.normal(0, self.mut_scale,
                                                  np.shape(mut[mut_clip == 'b']))
         x[rand < prob] = mut
 

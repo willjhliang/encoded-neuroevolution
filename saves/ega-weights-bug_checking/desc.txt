@@ -1,3 +1,0 @@
-Created on 11/25/2020
-
-Ran overnight to check performance. Results show that solution barely improved after 1000 iterations, and average error hovered in the thousands after increasing from a few hundred. Bug check inconclusive.

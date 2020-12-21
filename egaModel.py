@@ -16,12 +16,15 @@ import os
 import numpy as np
 import tensorflow as tf
 import time
+import multiprocessing as mp
 
 
 class EGA:
     def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100,
                  pop_size=200, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.7,
-                 par_ratio=0.3, folder_name='default', ckpt_period=25):
+                 par_ratio=0.3, folder_name='default', ckpt_period=25,
+                 load_ckpt=False, load_name='null', load_iter='-1',
+                 td_mut_scale=0.001):
 
         # Initializing globals
         self.iterations = iterations
@@ -32,6 +35,7 @@ class EGA:
         self.par_ratio = par_ratio
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
+        self.td_mut_scale = td_mut_scale
 
         # Setting problem
         self.problem = None
@@ -48,9 +52,12 @@ class EGA:
         # IO
         self.folder_name = 'saves/ega-' + self.problem_name + \
             '-' + folder_name
-        if not os.path.isdir(self.folder_name):
+        if not os.path.isdir(self.folder_name) and self.folder_name != 'print':
             os.mkdir(self.folder_name)
         self.ckpt_period = ckpt_period
+        self.load_ckpt = load_ckpt
+        self.load_name = 'saves/ega-' + self.problem_name + '-' + load_name
+        self.load_iter = load_iter
 
         ##################################################
         # NETWORK ARCHITECTURE
@@ -84,8 +91,10 @@ class EGA:
             self.layer_shapes, self.layer_sizes = self.get_layer_info()
         if self.problem_name == 'weights':
             self.layers = [['null']]
-            self.layer_shapes = [[[28, 28, 16, 32], [0]]]
-            self.layer_sizes = [[28 * 28 * 16 * 32, 0]]
+            # self.layer_shapes = [[[28, 28, 16, 32], [0]]]
+            # self.layer_sizes = [[28 * 28 * 16 * 32, 0]]
+            self.layer_shapes = [[[28, 28], [0]]]
+            self.layer_sizes = [[784, 0]]
 
         ##################################################
         # DECODERS
@@ -116,7 +125,8 @@ class EGA:
                              [[18, 20, 28], [3, 4, 7]],
                              [[7, 10, 12], [1, 2, 5]]]
         if self.problem_name == 'weights':
-            self.td_sizes = [[[28, 28, 16, 32], [0, 0, 0]]]
+            # self.td_sizes = [[[28, 28, 16, 32], [0, 0, 0]]]
+            self.td_sizes = [[[28, 28], [0]]]
 
         self.decoder_methods = []
         if ar_N > 0:  # Outdated
@@ -124,7 +134,7 @@ class EGA:
                                             self.layer_sizes))
         if td_N > 0:
             self.decoder_methods.append(ETD(td_N, self.td_sizes, self.layer_shapes,
-                                            self.layer_sizes))
+                                            self.layer_sizes, self.td_mut_scale))
         if rand_N > 0:  # Outdated
             self.decoder_methods.append(ERand(rand_N, self.layer_shapes,
                                               self.layer_sizes))
@@ -283,17 +293,14 @@ class EGA:
     def run(self):
 
         # Preparing records and files
-        history = open(self.folder_name + '/hist.txt', 'w+')
-        foo = input('Load previous checkpoint? (y/n) ')
+        history = open(self.folder_name + '/hist.txt', 'a+')
 
         # Initializing population and problem-specific variables
-        if foo == 'y':
-            load_name = input('Save name: ')
-            load_name = 'saves/ega-' + self.problem_name + '-' + load_name
-            start_iter = int(input('Iteration: '))
-            pop = np.load(load_name + '/iter-' + str(start_iter) + '.npy')
+        if self.load_ckpt:
+            pop = np.load(self.load_name + '/iter-' + str(self.load_iter) + '.npy')
             if self.problem_name[0:5] == 'snake':
-                food_arr = np.load(load_name + '/food.npy').tolist()
+                food_arr = np.load(self.load_name + '/food.npy').tolist()
+            start_iter = self.load_iter + 1
         else:
             start_iter = 1
             pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
@@ -305,9 +312,14 @@ class EGA:
                 randy = np.random.randint(1, 20, 3000)
                 food_arr = [[i, j] for i, j in zip(randx, randy)]
                 np.save(self.folder_name + '/food.npy', food_arr)
+        if self.problem_name[0:5] == 'snake':
+            model = self.get_tf_model()
+        if self.problem_name == 'MNIST':
+            model = self.get_tf_model()
+        if self.problem_name == 'weights':
+            pool = mp.Pool(4)
 
-        model = self.get_tf_model()
-        for t in range(start_iter, self.iterations + 1):
+        for t in range(start_iter, start_iter + self.iterations + 1):
             start = time.time()
 
             # Initializing metrics
@@ -324,19 +336,24 @@ class EGA:
                 diff = np.zeros(self.pop_size)
 
             # Testing population
-            for p in range(self.pop_size):
-                if self.problem_name[0:5] == 'snake':
+            if self.problem_name[0:5] == 'snake':
+                for p in range(self.pop_size):
                     model = self.set_tf_weights(model, self.decode(pop[p]))
                     steps[p], score[p], art_score[p], move_distributions[p], _, _, _ \
                         = self.problem.test(model, food_arr=food_arr)
                     fitness[p] = art_score[p]
-                if self.problem_name == 'MNIST':
+            if self.problem_name == 'MNIST':
+                for p in range(self.pop_size):
                     model = self.set_tf_weights(model, self.decode(pop[p]))
                     cce[p], acc[p] = self.problem.test(model)
                     fitness[p] = cce[p]
-                if self.problem_name == 'weights':
-                    diff[p] = self.problem.test(self.decode(pop[p])['W0'])
-                    fitness[p] = diff[p]
+            if self.problem_name == 'weights':
+                diff = pool.map(self.problem.test,
+                                [self.decode(ind)['W0'] for ind in pop])
+                # diff[p] = self.problem.test(self.decode(pop[p])['W0'])
+                # fitness[p] = diff[p]
+                diff = np.array(diff)
+                fitness = diff
 
             # Sorting population
             if self.problem_name[0:5] == 'snake':
@@ -388,9 +405,9 @@ class EGA:
             # Reporting information
             if t % self.ckpt_period == 0:
                 np.save(self.folder_name + '/iter-' + str(t) + '.npy', pop)
-                prev_file = self.folder_name + '/iter-' + str(t - 10 * self.ckpt_period) + '.npy'
-                if os.path.exists(prev_file):
-                    os.remove(prev_file)
+                # prev_file = self.folder_name + '/iter-' + str(t - 10 * self.ckpt_period) + '.npy'
+                # if os.path.exists(prev_file):
+                #     os.remove(prev_file)
 
                 if self.problem_name[0:5] == 'snake':
                     print(str(t).zfill(6) + '   ' +
@@ -466,13 +483,13 @@ class EGA:
         # Saving population into files
         if self.problem_name[0:5] == 'snake':
             np.savez(self.folder_name + '/final.npz', iterations=self.iterations, pop=pop, food=food_arr)
-            self.test(pop, food_arr=food_arr)
+            return self.test(pop, food_arr=food_arr)
         if self.problem_name == 'MNIST':
             np.savez(self.folder_name + '/final.npz', iterations=self.iterations, pop=pop)
-            self.test(pop)
+            return self.test(pop)
         if self.problem_name == 'weights':
             np.savez(self.folder_name + '/final.npz', iterations=self.iterations, pop=pop)
-            self.test(pop)
+            return self.test(pop)
 
     def test(self, pop, food_arr=None):
         weights = self.decode(pop[0])
@@ -524,3 +541,10 @@ class EGA:
         if self.problem_name[0:5] == 'snake':
             input()
             self.problem.test(model, goal_steps=30, gui=True)
+
+        if self.problem_name[0:5] == 'snake':
+            return art_score
+        if self.problem_name == 'MNIST':
+            return cce
+        if self.problem_name == 'weights':
+            return diff
