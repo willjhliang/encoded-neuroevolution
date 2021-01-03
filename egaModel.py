@@ -24,7 +24,8 @@ class EGA:
                  pop_size=200, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.7,
                  par_ratio=0.3, folder_name='default', ckpt_period=25,
                  load_ckpt=False, load_name='null', load_iter='-1',
-                 td_mut_scale=0.001):
+                 td_mut_scale_V=1e-2, td_mut_scale_a=1e-4,
+                 td_mut_scale_b=1e-6):
 
         # Initializing globals
         self.iterations = iterations
@@ -35,7 +36,9 @@ class EGA:
         self.par_ratio = par_ratio
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
-        self.td_mut_scale = td_mut_scale
+        self.td_mut_scale_V = td_mut_scale_V
+        self.td_mut_scale_a = td_mut_scale_a
+        self.td_mut_scale_b = td_mut_scale_b
 
         # Setting problem
         self.problem = None
@@ -91,10 +94,10 @@ class EGA:
             self.layer_shapes, self.layer_sizes = self.get_layer_info()
         if self.problem_name == 'weights':
             self.layers = [['null']]
-            # self.layer_shapes = [[[28, 28, 16, 32], [0]]]
-            # self.layer_sizes = [[28 * 28 * 16 * 32, 0]]
-            self.layer_shapes = [[[28, 28], [0]]]
-            self.layer_sizes = [[784, 0]]
+            self.layer_shapes = [[[28, 28, 16, 32], [0]]]
+            self.layer_sizes = [[28 * 28 * 16 * 32, 0]]
+            # self.layer_shapes = [[[28, 28], [0]]]
+            # self.layer_sizes = [[784, 0]]
 
         ##################################################
         # DECODERS
@@ -125,16 +128,17 @@ class EGA:
                              [[18, 20, 28], [3, 4, 7]],
                              [[7, 10, 12], [1, 2, 5]]]
         if self.problem_name == 'weights':
-            # self.td_sizes = [[[28, 28, 16, 32], [0, 0, 0]]]
-            self.td_sizes = [[[28, 28], [0]]]
+            self.td_sizes = [[[28, 28, 16, 32], [0, 0, 0]]]
+            # self.td_sizes = [[[28, 28], [0]]]
 
         self.decoder_methods = []
         if ar_N > 0:  # Outdated
             self.decoder_methods.append(EAR(ar_N, self.layer_shapes,
                                             self.layer_sizes))
         if td_N > 0:
-            self.decoder_methods.append(ETD(td_N, self.td_sizes, self.layer_shapes,
-                                            self.layer_sizes, self.td_mut_scale))
+            eTD = ETD(td_N, self.td_sizes, self.layer_shapes, self.layer_sizes,
+                      self.td_mut_scale_V, self.td_mut_scale_a, self.td_mut_scale_b)
+            self.decoder_methods.append(eTD)
         if rand_N > 0:  # Outdated
             self.decoder_methods.append(ERand(rand_N, self.layer_shapes,
                                               self.layer_sizes))
@@ -350,10 +354,11 @@ class EGA:
             if self.problem_name == 'weights':
                 diff = pool.map(self.problem.test,
                                 [self.decode(ind)['W0'] for ind in pop])
-                # diff[p] = self.problem.test(self.decode(pop[p])['W0'])
-                # fitness[p] = diff[p]
                 diff = np.array(diff)
                 fitness = diff
+                # for p in range(self.pop_size):
+                #     diff[p] = self.problem.test(self.decode(pop[p])['W0'])
+                #     fitness[p] = diff[p]
 
             # Sorting population
             if self.problem_name[0:5] == 'snake':
@@ -479,6 +484,8 @@ class EGA:
                     self.count += 1
 
         history.close()
+        if self.problem_name == 'weights':
+            pool.close()
 
         # Saving population into files
         if self.problem_name[0:5] == 'snake':

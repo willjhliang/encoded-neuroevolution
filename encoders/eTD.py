@@ -2,12 +2,15 @@ import numpy as np
 
 
 class ETD:
-    def __init__(self, td_N, td_sizes, layer_shapes, layer_sizes, mut_scale):
+    def __init__(self, td_N, td_sizes, layer_shapes, layer_sizes, mut_scale_V,
+                 mut_scale_a, mut_scale_b):
         self.layer_shapes = layer_shapes
         self.layer_sizes = layer_sizes
         self.td_N = td_N  # Same as rank
         self.td_sizes = td_sizes
-        self.mut_scale = mut_scale
+        self.mut_scale_V = mut_scale_V
+        self.mut_scale_a = mut_scale_a
+        self.mut_scale_b = mut_scale_b
 
         self.compressed_type = np.array([])
         for layer in range(len(self.td_sizes)):
@@ -22,9 +25,9 @@ class ETD:
                 size = self.td_N
                 self.compressed_type = np.concatenate((self.compressed_type,
                                                        np.array(['a'] * size)))
-                size = self.td_N
-                self.compressed_type = np.concatenate((self.compressed_type,
-                                                       np.array(['b'] * size)))
+                # size = self.td_N
+                # self.compressed_type = np.concatenate((self.compressed_type,
+                #                                        np.array(['b'] * size)))
         self.size = len(self.compressed_type)
 
         self.clip_lo = -1
@@ -49,7 +52,7 @@ class ETD:
                 ret[typ + 'a' + str(layer)] = np.ones((self.td_N)) / self.td_N
 
                 # b is the constant of output of rank r (M + b)
-                ret[typ + 'b' + str(layer)] = np.zeros((self.td_N))
+                # ret[typ + 'b' + str(layer)] = np.zeros((self.td_N))
 
         return ret
 
@@ -63,12 +66,12 @@ class ETD:
                     continue
                 V = decoder[typ + 'V' + str(layer)]
                 a = decoder[typ + 'a' + str(layer)]
-                b = decoder[typ + 'b' + str(layer)]
+                # b = decoder[typ + 'b' + str(layer)]
 
                 for v in V:
                     ret = np.concatenate((ret, v.flatten()))
                 ret = np.concatenate((ret, a))
-                ret = np.concatenate((ret, b))
+                # ret = np.concatenate((ret, b))
 
         return ret
 
@@ -87,8 +90,8 @@ class ETD:
                 ret[typ + 'V' + str(layer)] = V
                 a, decoder = np.split(decoder, [self.td_N])
                 ret[typ + 'a' + str(layer)] = a
-                b, decoder = np.split(decoder, [self.td_N])
-                ret[typ + 'b' + str(layer)] = b
+                # b, decoder = np.split(decoder, [self.td_N])
+                # ret[typ + 'b' + str(layer)] = b
 
         return ret, decoder[self.size:]
 
@@ -106,7 +109,7 @@ class ETD:
                         continue
                     V = decoder[typ + 'V' + str(layer)]
                     a = decoder[typ + 'a' + str(layer)][r]
-                    b = decoder[typ + 'b' + str(layer)][r]
+                    # b = decoder[typ + 'b' + str(layer)][r]
                     layer_shape = self.layer_shapes[layer][num]
                     layer_size = self.layer_sizes[layer][num]
 
@@ -114,7 +117,8 @@ class ETD:
                     for v in V[1:]:
                         M = M[..., None] * v[r].T
 
-                    M = M * a + b
+                    M = M * a
+                    # M = M * a + b
                     M, _ = np.split(M.flatten(), [layer_size])
                     ret[typ + str(layer)] += M.reshape(layer_shape)
 
@@ -134,14 +138,12 @@ class ETD:
         rand = np.random.rand(self.size)
         mut = x[rand < prob]
         mut_clip = self.compressed_type[rand < prob]
-        # mut[mut_clip == 'V'] = np.random.uniform(-1, 1,
-        #                                          np.shape(mut[mut_clip == 'V']))
-        mut[mut_clip == 'V'] += np.random.normal(0, 0.01,
+        mut[mut_clip == 'V'] += np.random.normal(0, self.mut_scale_V,
                                                  np.shape(mut[mut_clip == 'V']))
-        mut[mut_clip == 'a'] += np.random.normal(0, self.mut_scale,
+        mut[mut_clip == 'a'] += np.random.normal(0, self.mut_scale_a,
                                                  np.shape(mut[mut_clip == 'a']))
-        mut[mut_clip == 'b'] += np.random.normal(0, self.mut_scale,
-                                                 np.shape(mut[mut_clip == 'b']))
+        # mut[mut_clip == 'b'] += np.random.normal(0, self.mut_scale_b,
+        #                                          np.shape(mut[mut_clip == 'b']))
         x[rand < prob] = mut
 
         return x, y
