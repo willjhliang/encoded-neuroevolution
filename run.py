@@ -13,6 +13,7 @@ from egaModel import EGA
 import cProfile
 import pstats
 
+
 def optimize_td_mut_scale(runs_per_pos=1):
     pos = [10 ** a for a in range(-10, -12, -1)]
     print(pos)
@@ -42,6 +43,14 @@ def print_example():
     ega.test(pop)
     return res['W0']
 
+
+def profile():
+    profile = cProfile.Profile()
+    profile.runcall(profileCall)
+    ps = pstats.Stats(profile)
+    ps.print_stats()
+
+
 def profileCall():
     # Make sure to set problem as MINIMIZED weights
     ega = EGA('weights', 0, 16, 0, 0, iterations=1000,
@@ -49,6 +58,17 @@ def profileCall():
               load_ckpt=load_ckpt, load_name=load_name,
               load_iter=load_iter)
     ega.run()
+
+
+def testError():
+    ega = EGA('weights', 0, 16, 0, 0, iterations=1, pop_size=2,
+              folder_name=folder_name, ckpt_period=1,
+              load_ckpt=load_ckpt, load_name=load_name,
+              load_iter=load_iter)
+    ind = ega.compress_decoder(ega.decoder())
+    error = ega.problem.test(ega.decode(ind)['W0'])
+    return error
+
 
 folder_name = input('Run name: ')
 load_ckpt = input('Load checkpoint? (y/n) ') == 'y'
@@ -58,17 +78,8 @@ if load_ckpt:
     load_name = input('Load from: ')
     load_iter = int(input('Iteration: '))
 
-if folder_name == 'print':
-    print(print_example())
-elif folder_name == 'profile':
-    profile = cProfile.Profile()
-    profile.runcall(profileCall)
-    ps = pstats.Stats(profile)
-    ps.print_stats()
-else:
-    # print(optimize_td_mut_scale())
-    ega = EGA('weights', 0, 16, 0, 0, iterations=1000,
-              folder_name=folder_name, ckpt_period=100,
-              load_ckpt=load_ckpt, load_name=load_name,
-              load_iter=load_iter, mut_prob=0.4, cross_prob=0.9)
-    ega.run()
+ega = EGA('weights', 0, 16, 0, 0, iterations=10000, pop_size=200,
+          folder_name=folder_name, ckpt_period=100,
+          load_ckpt=load_ckpt, load_name=load_name,
+          load_iter=load_iter, mut_prob=0.3, cross_prob=0.7, par_ratio=0.3)
+ega.run()

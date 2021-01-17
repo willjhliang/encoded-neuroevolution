@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.io
 
 
 class ETD:
@@ -53,6 +54,14 @@ class ETD:
 
                 # b is the constant of output of rank r (M + b)
                 # ret[typ + 'b' + str(layer)] = np.zeros((self.td_N))
+
+                # Load custom data
+                # mat = scipy.io.loadmat('cp_decomp_test/factors_16.mat')
+                # V = [mat['A'].T, mat['B'].T, mat['C'].T, mat['D'].T]
+                # V = [mat['A'].T, mat['B'].T, mat['C'].T]
+                # ret[typ + 'V' + str(layer)] = V
+
+                ret[typ + 'a' + str(layer)] = np.ones((self.td_N))
 
         return ret
 

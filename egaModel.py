@@ -96,8 +96,8 @@ class EGA:
             self.layers = [['null']]
             self.layer_shapes = [[[28, 28, 16, 32], [0]]]
             self.layer_sizes = [[28 * 28 * 16 * 32, 0]]
-            # self.layer_shapes = [[[28, 28], [0]]]
-            # self.layer_sizes = [[784, 0]]
+            # self.layer_shapes = [[[4, 3, 2], [0]]]
+            # self.layer_sizes = [[24, 0]]
 
         ##################################################
         # DECODERS
@@ -129,7 +129,7 @@ class EGA:
                              [[7, 10, 12], [1, 2, 5]]]
         if self.problem_name == 'weights':
             self.td_sizes = [[[28, 28, 16, 32], [0, 0, 0]]]
-            # self.td_sizes = [[[28, 28], [0]]]
+            # self.td_sizes = [[[4, 3, 2], [0]]]
 
         self.decoder_methods = []
         if ar_N > 0:  # Outdated
@@ -356,9 +356,6 @@ class EGA:
                                 [self.decode(ind)['W0'] for ind in pop])
                 diff = np.array(diff)
                 fitness = diff
-                # for p in range(self.pop_size):
-                #     diff[p] = self.problem.test(self.decode(pop[p])['W0'])
-                #     fitness[p] = diff[p]
 
             # Sorting population
             if self.problem_name[0:5] == 'snake':
