@@ -1,0 +1,22 @@
+
+    def run(self):
+        model = self.model()
+        m = self.X.shape[1]
+
+        for _ in range(100):
+            J, Z1, A1, Z2, A2 = self.forward_prop(model, self.X, self.y)
+
+            dZ2 = (A2 - self.y)
+            dW2 = (1 / m) * np.dot(dZ2, A1.T)
+            db2 = (1 / m) * np.sum(dZ2, axis=1, keepdims=True)
+            W2 = model['W2']
+            dZ1 = self.relu_der(np.dot(W2.T, dZ2), Z1)
+            dW1 = (1 / m) * np.dot(dZ1, self.X.T)
+            db1 = (1 / m) * np.sum(dZ1, axis=1, keepdims=True)
+
+            model['W1'] -= self.lr * dW1
+            model['b1'] -= self.lr * db1
+            model['W2'] -= self.lr * dW2
+            model['b2'] -= self.lr * db2
+        np.savez('saves/' + self.file, W1=model['W1'], b1=model['b1'], W2=model['W2'], b2=model['b2'])
+        self.test(model)
