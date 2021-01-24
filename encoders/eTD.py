@@ -14,21 +14,44 @@ class ETD:
         self.mut_scale_b = mut_scale_b
 
         self.compressed_type = np.array([])
+        # for layer in range(len(self.td_sizes)):
+        #     if self.td_sizes[layer] == []:
+        #         continue
+        #     for num, typ in enumerate(['W', 'b']):
+        #         if np.sum(self.td_sizes[layer][num]) == 0:
+        #             continue
+        #         size = np.sum(self.td_sizes[layer][num]) * self.td_N
+        #         self.compressed_type = np.concatenate((self.compressed_type,
+        #                                                np.array(['V'] * size)))
+        #         size = self.td_N
+        #         self.compressed_type = np.concatenate((self.compressed_type,
+        #                                                np.array(['a'] * size)))
+        #         # size = self.td_N
+        #         # self.compressed_type = np.concatenate((self.compressed_type,
+        #         #                                        np.array(['b'] * size)))
+
+        # Used in steprank to protect old values
         for layer in range(len(self.td_sizes)):
             if self.td_sizes[layer] == []:
                 continue
             for num, typ in enumerate(['W', 'b']):
                 if np.sum(self.td_sizes[layer][num]) == 0:
                     continue
-                size = np.sum(self.td_sizes[layer][num]) * self.td_N
-                self.compressed_type = np.concatenate((self.compressed_type,
-                                                       np.array(['V'] * size)))
+                for v in self.td_sizes[layer][num]:
+                    size = v * self.td_N
+                    self.compressed_type = np.concatenate((self.compressed_type,
+                                                           np.array(['null'] * (size - v))))
+                    self.compressed_type = np.concatenate((self.compressed_type,
+                                                           np.array(['V'] * v)))
                 size = self.td_N
                 self.compressed_type = np.concatenate((self.compressed_type,
-                                                       np.array(['a'] * size)))
+                                                       np.array(['null'] * (size - 1))))
+                self.compressed_type = np.concatenate((self.compressed_type,
+                                                       np.array(['a'] * 1)))
                 # size = self.td_N
                 # self.compressed_type = np.concatenate((self.compressed_type,
                 #                                        np.array(['b'] * size)))
+
         self.size = len(self.compressed_type)
 
         self.clip_lo = -1
@@ -61,7 +84,7 @@ class ETD:
                 # V = [mat['A'].T, mat['B'].T, mat['C'].T]
                 # ret[typ + 'V' + str(layer)] = V
 
-                ret[typ + 'a' + str(layer)] = np.ones((self.td_N))
+                # ret[typ + 'a' + str(layer)] = np.ones((self.td_N))
 
         return ret
 

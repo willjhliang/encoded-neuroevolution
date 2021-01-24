@@ -294,28 +294,31 @@ class EGA:
             ret = np.concatenate((ret, tret))
         return ret
 
+    def initialize_pop(self):
+        if self.load_ckpt:
+            self.pop = np.load(self.load_name + '/iter-' + str(self.load_iter) + '.npy')
+            if self.problem_name[0:5] == 'snake':
+                self.food_arr = np.load(self.load_name + '/food.npy').tolist()
+        else:
+            self.pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
+            for p in range(self.pop_size):
+                self.pop[p] = self.compress_decoder(self.decoder())
+                self.pop[p] = self.clip(self.pop[p])
+            if self.problem_name[0:5] == 'snake':
+                randx = np.random.randint(1, 20, 3000)
+                randy = np.random.randint(1, 20, 3000)
+                self.food_arr = [[i, j] for i, j in zip(randx, randy)]
+                np.save(self.folder_name + '/food.npy', self.food_arr)
+        if self.load_iter != -1:
+            self.start_iter = self.load_iter + 1
+        else:
+            self.start_iter = 1
+
     def run(self):
 
         # Preparing records and files
         history = open(self.folder_name + '/hist.txt', 'a+')
 
-        # Initializing population and problem-specific variables
-        if self.load_ckpt:
-            pop = np.load(self.load_name + '/iter-' + str(self.load_iter) + '.npy')
-            if self.problem_name[0:5] == 'snake':
-                food_arr = np.load(self.load_name + '/food.npy').tolist()
-            start_iter = self.load_iter + 1
-        else:
-            start_iter = 1
-            pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
-            for p in range(self.pop_size):
-                pop[p] = self.compress_decoder(self.decoder())
-                pop[p] = self.clip(pop[p])
-            if self.problem_name[0:5] == 'snake':
-                randx = np.random.randint(1, 20, 3000)
-                randy = np.random.randint(1, 20, 3000)
-                food_arr = [[i, j] for i, j in zip(randx, randy)]
-                np.save(self.folder_name + '/food.npy', food_arr)
         if self.problem_name[0:5] == 'snake':
             model = self.get_tf_model()
         if self.problem_name == 'MNIST':
@@ -323,7 +326,7 @@ class EGA:
         if self.problem_name == 'weights':
             pool = mp.Pool(4)
 
-        for t in range(start_iter, start_iter + self.iterations + 1):
+        for t in range(self.start_iter, self.start_iter + self.iterations + 1):
             start = time.time()
 
             # Initializing metrics
@@ -342,18 +345,18 @@ class EGA:
             # Testing population
             if self.problem_name[0:5] == 'snake':
                 for p in range(self.pop_size):
-                    model = self.set_tf_weights(model, self.decode(pop[p]))
+                    model = self.set_tf_weights(model, self.decode(self.pop[p]))
                     steps[p], score[p], art_score[p], move_distributions[p], _, _, _ \
-                        = self.problem.test(model, food_arr=food_arr)
+                        = self.problem.test(model, food_arr=self.food_arr)
                     fitness[p] = art_score[p]
             if self.problem_name == 'MNIST':
                 for p in range(self.pop_size):
-                    model = self.set_tf_weights(model, self.decode(pop[p]))
+                    model = self.set_tf_weights(model, self.decode(self.pop[p]))
                     cce[p], acc[p] = self.problem.test(model)
                     fitness[p] = cce[p]
             if self.problem_name == 'weights':
                 diff = pool.map(self.problem.test,
-                                [self.decode(ind)['W0'] for ind in pop])
+                                [self.decode(ind)['W0'] for ind in self.pop])
                 diff = np.array(diff)
                 fitness = diff
 
@@ -371,7 +374,7 @@ class EGA:
             if self.problem_name == 'weights':
                 sort = np.argsort(fitness)
                 diff = diff[sort]
-            pop = pop[sort]
+            self.pop = self.pop[sort]
             fitness = fitness[sort]
 
             # Recording performance
@@ -380,7 +383,7 @@ class EGA:
                 avg_score = 1.0 * np.sum(score) / self.pop_size
                 avg_art_score = 1.0 * np.sum(art_score) / self.pop_size
                 history.write(str(t).zfill(6) + '     ' +
-                              str(int(pop[0][0])).zfill(6) + '   ' +
+                              str(int(self.pop[0][0])).zfill(6) + '   ' +
                               str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
                               str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
                               str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
@@ -406,14 +409,14 @@ class EGA:
 
             # Reporting information
             if t % self.ckpt_period == 0:
-                np.save(self.folder_name + '/iter-' + str(t) + '.npy', pop)
+                np.save(self.folder_name + '/iter-' + str(t) + '.npy', self.pop)
                 # prev_file = self.folder_name + '/iter-' + str(t - 10 * self.ckpt_period) + '.npy'
                 # if os.path.exists(prev_file):
                 #     os.remove(prev_file)
 
                 if self.problem_name[0:5] == 'snake':
                     print(str(t).zfill(6) + '   ' +
-                          str(int(pop[0][0])).zfill(6) + '   ' +
+                          str(int(self.pop[0][0])).zfill(6) + '   ' +
                           str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
                           str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
                           str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
@@ -447,10 +450,10 @@ class EGA:
             # Finding parents
             par = np.array([np.zeros(self.compress_len)] * self.par_size)
             for i in range(self.elite_size):
-                par[i] = pop[i].copy()
+                par[i] = self.pop[i].copy()
             for i in range(self.elite_size, self.par_size):
                 idx = np.searchsorted(cum_prob, np.random.random())
-                par[i] = pop[idx].copy()
+                par[i] = self.pop[idx].copy()
 
             # Performing crossover and mutation
             eff = np.array([False] * self.par_size)
@@ -461,23 +464,24 @@ class EGA:
                         eff[i] = True
                         par_ct += 1
             eff_par = par[eff].copy()
-            pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
+            self.pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
             for i in range(self.par_size):
-                pop[i] = par[i].copy()
+                self.pop[i] = par[i].copy()
             for i in range(self.par_size, self.pop_size, 2):
                 p1 = eff_par[np.random.randint(0, par_ct)].copy()
                 p2 = eff_par[np.random.randint(0, par_ct)].copy()
-                c1, c2 = self.cross(p1, p2)
+                c1, c2 = p1, p2
+                # c1, c2 = self.cross(p1, p2)
 
-                pop[i] = c1
-                pop[i] = self.mut(pop[i])
-                pop[i][0] = self.count
+                self.pop[i] = c1
+                self.pop[i] = self.mut(self.pop[i])
+                self.pop[i][0] = self.count
                 self.count += 1
 
                 if i + 1 < self.pop_size:
-                    pop[i + 1] = c2
-                    pop[i + 1] = self.mut(pop[i + 1])
-                    pop[i + 1][0] = self.count
+                    self.pop[i + 1] = c2
+                    self.pop[i + 1] = self.mut(self.pop[i + 1])
+                    self.pop[i + 1][0] = self.count
                     self.count += 1
 
         history.close()
@@ -486,17 +490,30 @@ class EGA:
 
         # Saving population into files
         if self.problem_name[0:5] == 'snake':
-            np.savez(self.folder_name + '/final.npz', iterations=self.iterations, pop=pop, food=food_arr)
-            return self.test(pop, food_arr=food_arr)
+            np.savez(self.folder_name + '/final.npz',
+                     iterations=self.iterations,
+                     pop=self.pop,
+                     food=self.food_arr)
+            return self.test()
         if self.problem_name == 'MNIST':
-            np.savez(self.folder_name + '/final.npz', iterations=self.iterations, pop=pop)
-            return self.test(pop)
+            np.savez(self.folder_name + '/final.npz',
+                     iterations=self.iterations,
+                     pop=self.pop)
+            return self.test()
         if self.problem_name == 'weights':
-            np.savez(self.folder_name + '/final.npz', iterations=self.iterations, pop=pop)
-            return self.test(pop)
+            np.savez(self.folder_name + '/final.npz',
+                     iterations=self.iterations,
+                     pop=self.pop)
+            return self.test()
 
-    def test(self, pop, food_arr=None):
-        weights = self.decode(pop[0])
+    def test(self):
+        # Load in pop
+        if self.load_ckpt:
+            self.pop = np.load(self.load_name + '/iter-' + str(self.load_iter) + '.npy')
+            if self.problem_name[0:5] == 'snake':
+                food_arr = np.load(self.load_name + '/food.npy').tolist()
+
+        weights = self.decode(self.pop[0])
         print('==================================================')
         if self.problem_name[0:5] == 'snake':
             model = self.get_tf_model()

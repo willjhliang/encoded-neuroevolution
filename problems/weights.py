@@ -12,8 +12,13 @@ class Weights:
         self.norm = np.linalg.norm(tensorly.base.unfold(self.weights, 0),
                                    'fro')
 
-    def test(self, weights):
+    def test(self, weights, print_stats=False):
         diff = weights - self.weights
-
         res = np.linalg.norm(tensorly.base.unfold(diff, 0), 'fro')
+
+        if print_stats:
+            print('Pred max: ' + str(np.amax(weights)))
+            print('Pred min: ' + str(np.amin(weights)))
+            print('Diff max: ' + str(np.amax(diff)))
+
         return res / self.norm
