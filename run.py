@@ -108,18 +108,19 @@ def stepRank(rank):
             past_pop.append(ega.expand_decoder(ega.pop[p]))
 
 
-folder_name = input('Run name: ')
-load_ckpt = input('Load checkpoint? (y/n) ') == 'y'
-load_name = 'null'
-load_iter = -1
-if load_ckpt:
-    load_name = input('Load from: ')
-    load_iter = int(input('Iteration: '))
+if __name__ == '__main__':
+    folder_name = input('Run name: ')
+    load_ckpt = input('Load checkpoint? (y/n) ') == 'y'
+    load_name = 'null'
+    load_iter = -1
+    if load_ckpt:
+        load_name = input('Load from: ')
+        load_iter = int(input('Iteration: '))
 
-# ega = EGA('weights', 0, 16, 0, 0, iterations=10000, pop_size=200,
-#           folder_name=folder_name, ckpt_period=100,
-#           load_ckpt=load_ckpt, load_name=load_name,
-#           load_iter=load_iter, mut_prob=0.3, cross_prob=0.7, par_ratio=0.3)
-# ega.test()
+    # ega = EGA('weights', 0, 16, 0, 0, iterations=10000, pop_size=200,
+    #           folder_name=folder_name, ckpt_period=100,
+    #           load_ckpt=load_ckpt, load_name=load_name,
+    #           load_iter=load_iter, mut_prob=0.3, cross_prob=0.7, par_ratio=0.3)
+    # ega.test()
 
-stepRank(16)
+    stepRank(16)
