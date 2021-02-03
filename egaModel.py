@@ -22,10 +22,10 @@ import multiprocessing as mp
 class EGA:
     def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100,
                  pop_size=200, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.7,
-                 par_ratio=0.3, folder_name='default', ckpt_period=25,
-                 load_ckpt=False, load_name='null', load_iter='-1',
+                 par_ratio=0.3, run_name='', ckpt_period=25,
+                 load_ckpt=False, load_name='', load_iter='-1',
                  td_mut_scale_V=1e-2, td_mut_scale_a=1e-4,
-                 td_mut_scale_b=1e-6):
+                 td_mut_scale_b=1e-6, plateau_iter=200):
 
         # Initializing globals
         self.iterations = iterations
@@ -39,6 +39,7 @@ class EGA:
         self.td_mut_scale_V = td_mut_scale_V
         self.td_mut_scale_a = td_mut_scale_a
         self.td_mut_scale_b = td_mut_scale_b
+        self.plateau_iter = plateau_iter
 
         # Setting problem
         self.problem = None
@@ -53,10 +54,14 @@ class EGA:
         self.problem_name = problem
 
         # IO
-        self.folder_name = 'saves/ega-' + self.problem_name + \
-            '-' + folder_name
-        if not os.path.isdir(self.folder_name) and self.folder_name != 'print':
-            os.mkdir(self.folder_name)
+        if run_name != '':
+            self.run_name = 'saves/ega-' + self.problem_name + \
+                '-' + run_name
+            if not os.path.isdir(self.run_name):
+                os.mkdir(self.run_name)
+        else:
+            print('Decaying mutation rate will be disabled')
+            self.run_name = ''
         self.ckpt_period = ckpt_period
         self.load_ckpt = load_ckpt
         self.load_name = 'saves/ega-' + self.problem_name + '-' + load_name
@@ -131,26 +136,29 @@ class EGA:
             self.td_sizes = [[[28, 28, 16, 32], [0, 0, 0]]]
             # self.td_sizes = [[[4, 3, 2], [0]]]
 
-        self.decoder_methods = []
-        if ar_N > 0:  # Outdated
-            self.decoder_methods.append(EAR(ar_N, self.layer_shapes,
-                                            self.layer_sizes))
-        if td_N > 0:
-            eTD = ETD(td_N, self.td_sizes, self.layer_shapes, self.layer_sizes,
-                      self.td_mut_scale_V, self.td_mut_scale_a, self.td_mut_scale_b)
-            self.decoder_methods.append(eTD)
-        if rand_N > 0:  # Outdated
-            self.decoder_methods.append(ERand(rand_N, self.layer_shapes,
-                                              self.layer_sizes))
-        if nn_N > 0:  # Outdated
-            self.decoder_methods.append(ENN(nn_N, self.layer_shapes,
-                                            self.layer_sizes))
+        self.decoder = ETD(td_N, self.td_sizes, self.layer_shapes, self.layer_sizes,
+                           self.td_mut_scale_V, self.td_mut_scale_a, self.td_mut_scale_b)
+        # self.decoder_methods = []
+        # if ar_N > 0:  # Outdated
+        #     self.decoder_methods.append(EAR(ar_N, self.layer_shapes,
+        #                                     self.layer_sizes))
+        # if td_N > 0:
+        #     eTD = ETD(td_N, self.td_sizes, self.layer_shapes, self.layer_sizes,
+        #               self.td_mut_scale_V, self.td_mut_scale_a, self.td_mut_scale_b)
+        #     self.decoder_methods.append(eTD)
+        # if rand_N > 0:  # Outdated
+        #     self.decoder_methods.append(ERand(rand_N, self.layer_shapes,
+        #                                       self.layer_sizes))
+        # if nn_N > 0:  # Outdated
+        #     self.decoder_methods.append(ENN(nn_N, self.layer_shapes,
+        #                                     self.layer_sizes))
 
         # Initializing population variables
         self.count = 0
-        self.compress_len = 1
-        for e in self.decoder_methods:
-            self.compress_len += e.size
+        self.compress_len = 1 + self.decoder.size
+        # self.compress_len = 1
+        # for e in self.decoder_methods:
+        #     self.compress_len += e.size
 
     def get_layer_info(self):
         sizes_ret = [[0, 0]]
@@ -185,49 +193,61 @@ class EGA:
 
         return shapes_ret, sizes_ret
 
-    def decoder(self):
-        ret = {'id': self.count}
+    def get_decoder(self, custom_data=False):
+        ret = self.decoder.get_decoder(custom_data)
+        ret['id'] = self.count
         self.count += 1
 
-        for e in self.decoder_methods:
-            tret = e.decoder()
-            for key in tret:
-                ret[key] = tret[key]
+        # ret = {'id': self.count}
+        # self.count += 1
+
+        # for e in self.decoder_methods:
+        #     tret = e.decoder(custom_data)
+        #     for key in tret:
+        #         ret[key] = tret[key]
 
         return ret
 
     def compress_decoder(self, decoder):
-        ret = np.array([decoder['id']])
-        for e in self.decoder_methods:
-            tret = e.compress_decoder(decoder)
-            ret = np.concatenate((ret, tret))
+        ret = self.decoder.compress_decoder(decoder)
+        ret = np.concatenate((np.array([decoder['id']]), ret))
+
+        # ret = np.array([decoder['id']])
+        # for e in self.decoder_methods:
+        #     tret = e.compress_decoder(decoder)
+        #     ret = np.concatenate((ret, tret))
 
         return ret
 
     def expand_decoder(self, decoder):
-        ret = {'id': decoder[0]}
-        decoder = decoder[1:]
-        for e in self.decoder_methods:
-            tret, decoder = e.expand_decoder(decoder)
-            for key in tret:
-                ret[key] = tret[key]
+        ret, _ = self.decoder.expand_decoder(decoder[1:])
+        ret['id'] = decoder[0]
+
+        # ret = {'id': decoder[0]}
+        # decoder = decoder[1:]
+        # for e in self.decoder_methods:
+        #     tret, decoder = e.expand_decoder(decoder)
+        #     for key in tret:
+        #         ret[key] = tret[key]
 
         return ret
 
     def decode(self, decoder):
         decoder = self.expand_decoder(decoder)
+        ret = self.decoder.decode(decoder)
 
-        ret = {}
-        for i in range(len(self.layers)):
-            ret['W' + str(i)] = np.zeros(shape=self.layer_shapes[i][0])
-            ret['b' + str(i)] = np.zeros(shape=self.layer_shapes[i][1])
-            ret['func' + str(i)] = self.layers[i][-1]
+        # decoder = self.expand_decoder(decoder)
+        # ret = {}
+        # for i in range(len(self.layers)):
+        #     ret['W' + str(i)] = np.zeros(shape=self.layer_shapes[i][0])
+        #     ret['b' + str(i)] = np.zeros(shape=self.layer_shapes[i][1])
+        #     ret['func' + str(i)] = self.layers[i][-1]
 
-        for e in self.decoder_methods:
-            tret = e.decode(decoder)
-            for i in range(len(self.layers)):
-                ret['W' + str(i)] += tret['W' + str(i)]
-                ret['b' + str(i)] += tret['b' + str(i)]
+        # for e in self.decoder_methods:
+        #     tret = e.decode(decoder)
+        #     for i in range(len(self.layers)):
+        #         ret['W' + str(i)] += tret['W' + str(i)]
+        #         ret['b' + str(i)] += tret['b' + str(i)]
 
         return ret
 
@@ -267,11 +287,14 @@ class EGA:
         return ret
 
     def clip(self, decoder):
-        ret = np.array([decoder[0]], copy=True)
-        decoder = decoder[1:]
-        for e in self.decoder_methods:
-            tret, decoder = e.clip(decoder)
-            ret = np.concatenate((ret, tret))
+        ret, _ = self.decoder.clip(decoder[1:])
+        ret = np.concatenate((np.array([decoder[0]], copy=True), ret))
+
+        # ret = np.array([decoder[0]], copy=True)
+        # decoder = decoder[1:]
+        # for e in self.decoder_methods:
+        #     tret, decoder = e.clip(decoder)
+        #     ret = np.concatenate((ret, tret))
 
         return ret
 
@@ -288,10 +311,13 @@ class EGA:
         return c1, c2
 
     def mut(self, decoder):
-        ret = np.array([decoder[0]], copy=True)
-        for e in self.decoder_methods:
-            tret, decoder = e.mut(decoder[1:], self.mut_prob)
-            ret = np.concatenate((ret, tret))
+        ret, _ = self.decoder.mut(decoder[1:], self.mut_prob)
+        ret = np.concatenate((np.array([decoder[0]], copy=True), ret))
+
+        # ret = np.array([decoder[0]], copy=True)
+        # for e in self.decoder_methods:
+        #     tret, decoder = e.mut(decoder[1:], self.mut_prob)
+        #     ret = np.concatenate((ret, tret))
         return ret
 
     def initialize_pop(self):
@@ -302,13 +328,14 @@ class EGA:
         else:
             self.pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
             for p in range(self.pop_size):
-                self.pop[p] = self.compress_decoder(self.decoder())
+                self.pop[p] = self.compress_decoder(self.get_decoder())
                 self.pop[p] = self.clip(self.pop[p])
             if self.problem_name[0:5] == 'snake':
                 randx = np.random.randint(1, 20, 3000)
                 randy = np.random.randint(1, 20, 3000)
                 self.food_arr = [[i, j] for i, j in zip(randx, randy)]
-                np.save(self.folder_name + '/food.npy', self.food_arr)
+                if self.run_name != '':
+                    np.save(self.run_name + '/food.npy', self.food_arr)
         if self.load_iter != -1:
             self.start_iter = self.load_iter + 1
         else:
@@ -317,7 +344,8 @@ class EGA:
     def run(self):
 
         # Preparing records and files
-        history = open(self.folder_name + '/hist.txt', 'a+')
+        if self.run_name != '':
+            history = open(self.run_name + '/hist.txt', 'a+')
 
         if self.problem_name[0:5] == 'snake':
             model = self.get_tf_model()
@@ -326,6 +354,7 @@ class EGA:
         if self.problem_name == 'weights':
             pool = mp.Pool(4)
 
+        prev_fitness = np.zeros(self.pop_size)
         for t in range(self.start_iter, self.start_iter + self.iterations + 1):
             start = time.time()
 
@@ -378,39 +407,41 @@ class EGA:
             fitness = fitness[sort]
 
             # Recording performance
-            if self.problem_name[0:5] == 'snake':
-                avg_steps = 1.0 * np.sum(steps) / self.pop_size
-                avg_score = 1.0 * np.sum(score) / self.pop_size
-                avg_art_score = 1.0 * np.sum(art_score) / self.pop_size
-                history.write(str(t).zfill(6) + '     ' +
-                              str(int(self.pop[0][0])).zfill(6) + '   ' +
-                              str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
-                              str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
-                              str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
-                              str('{:.2f}'.format(avg_steps)).zfill(7) + '   ' +
-                              str('{:.2f}'.format(avg_score)).zfill(6) + '   ' +
-                              str('{:.2f}'.format(avg_art_score)).zfill(7) + '\n')
-            if self.problem_name == 'MNIST':
-                avg_cce = 1.0 * np.sum(cce) / self.pop_size
-                avg_acc = 1.0 * np.sum(acc) / self.pop_size
-                history.write(str(t).zfill(6) + '     ' +
-                              str('{:.2f}'.format(cce[0])).zfill(3) + '   ' +
-                              str('{:.2f}'.format(acc[0])).zfill(5) + '   ' +
-                              str('{:.2f}'.format(avg_cce)).zfill(3) + '   ' +
-                              str('{:.2f}'.format(avg_acc)).zfill(5) + '\n')
-            if self.problem_name == 'weights':
-                avg_diff = 1.0 * np.sum(diff) / self.pop_size
-                history.write(str(t).zfill(6) + '     ' +
-                              str('{:.2f}'.format(diff[0])).zfill(3) + '   ' +
-                              str('{:.2f}'.format(avg_diff)).zfill(5) + '\n')
-            history.flush()
+            if self.run_name != '':
+                if self.problem_name[0:5] == 'snake':
+                    avg_steps = 1.0 * np.sum(steps) / self.pop_size
+                    avg_score = 1.0 * np.sum(score) / self.pop_size
+                    avg_art_score = 1.0 * np.sum(art_score) / self.pop_size
+                    history.write(str(t).zfill(6) + '     ' +
+                                  str(int(self.pop[0][0])).zfill(6) + '   ' +
+                                  str('{:.2f}'.format(steps[0])).zfill(7) + '   ' +
+                                  str('{:.2f}'.format(score[0])).zfill(6) + '   ' +
+                                  str('{:.2f}'.format(art_score[0])).zfill(7) + '     ' +
+                                  str('{:.2f}'.format(avg_steps)).zfill(7) + '   ' +
+                                  str('{:.2f}'.format(avg_score)).zfill(6) + '   ' +
+                                  str('{:.2f}'.format(avg_art_score)).zfill(7) + '\n')
+                if self.problem_name == 'MNIST':
+                    avg_cce = 1.0 * np.sum(cce) / self.pop_size
+                    avg_acc = 1.0 * np.sum(acc) / self.pop_size
+                    history.write(str(t).zfill(6) + '     ' +
+                                  str('{:.2f}'.format(cce[0])).zfill(3) + '   ' +
+                                  str('{:.2f}'.format(acc[0])).zfill(5) + '   ' +
+                                  str('{:.2f}'.format(avg_cce)).zfill(3) + '   ' +
+                                  str('{:.2f}'.format(avg_acc)).zfill(5) + '\n')
+                if self.problem_name == 'weights':
+                    avg_diff = 1.0 * np.sum(diff) / self.pop_size
+                    history.write(str(t).zfill(6) + '     ' +
+                                  str('{:.2f}'.format(diff[0])).zfill(3) + '   ' +
+                                  str('{:.2f}'.format(avg_diff)).zfill(5) + '\n')
+                history.flush()
 
             end = time.time()
 
             # Reporting information
             if t % self.ckpt_period == 0:
-                np.save(self.folder_name + '/iter-' + str(t) + '.npy', self.pop)
-                # prev_file = self.folder_name + '/iter-' + str(t - 10 * self.ckpt_period) + '.npy'
+                if self.run_name != '':
+                    np.save(self.run_name + '/iter-' + str(t) + '.npy', self.pop)
+                # prev_file = self.run_name + '/iter-' + str(t - 10 * self.ckpt_period) + '.npy'
                 # if os.path.exists(prev_file):
                 #     os.remove(prev_file)
 
@@ -456,6 +487,22 @@ class EGA:
                 par[i] = self.pop[idx].copy()
 
             # Performing crossover and mutation
+
+            if self.run_name != '':
+                with open(self.run_name + '/hist.txt', 'r') as read_hist:
+                    lines = read_hist.readlines()
+                    if t > self.plateau_iter:
+                        prev_fitness = lines[-self.plateau_iter].split()
+                        prev_fitness = float(prev_fitness[1])
+                        if prev_fitness == fitness[0]:  # Plateaued
+                            print('Decreased mutation scale')
+                            self.td_mut_scale_V /= 3
+                            self.td_mut_scale_a /= 2
+                            self.td_mut_scale_b /= 2
+                            self.decoder.mut_scale_V = self.td_mut_scale_V
+                            self.decoder.mut_scale_a = self.td_mut_scale_a
+                            self.decoder.mut_scale_b = self.td_mut_scale_b
+
             eff = np.array([False] * self.par_size)
             par_ct = 0
             while par_ct < 1:
@@ -489,22 +536,21 @@ class EGA:
             pool.close()
 
         # Saving population into files
-        if self.problem_name[0:5] == 'snake':
-            np.savez(self.folder_name + '/final.npz',
-                     iterations=self.iterations,
-                     pop=self.pop,
-                     food=self.food_arr)
-            return self.test()
-        if self.problem_name == 'MNIST':
-            np.savez(self.folder_name + '/final.npz',
-                     iterations=self.iterations,
-                     pop=self.pop)
-            return self.test()
-        if self.problem_name == 'weights':
-            np.savez(self.folder_name + '/final.npz',
-                     iterations=self.iterations,
-                     pop=self.pop)
-            return self.test()
+        if self.run_name != '':
+            if self.problem_name[0:5] == 'snake':
+                np.savez(self.run_name + '/final.npz',
+                         iterations=self.iterations,
+                         pop=self.pop,
+                         food=self.food_arr)
+            if self.problem_name == 'MNIST':
+                np.savez(self.run_name + '/final.npz',
+                         iterations=self.iterations,
+                         pop=self.pop)
+            if self.problem_name == 'weights':
+                np.savez(self.run_name + '/final.npz',
+                         iterations=self.iterations,
+                         pop=self.pop)
+        return self.test()
 
     def test(self):
         # Load in pop

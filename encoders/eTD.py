@@ -57,7 +57,7 @@ class ETD:
         self.clip_lo = -1
         self.clip_hi = 1
 
-    def decoder(self):
+    def get_decoder(self, custom_data=False):
         ret = {}
         for layer in range(len(self.td_sizes)):
             if self.td_sizes[layer] == []:
@@ -65,26 +65,25 @@ class ETD:
             for num, typ in enumerate(['W', 'b']):
                 if np.sum(self.td_sizes[layer][num]) == 0:
                     continue
-                # V stores the vectors used in tensor decomp
-                # V[vector number][rank] = 1D vector
-                # Values in V are restricted from clip_lo to clip_hi
-                V = [np.random.uniform(self.clip_lo, self.clip_hi, (self.td_N, v))
-                     for v in self.td_sizes[layer][num]]
-                ret[typ + 'V' + str(layer)] = V
+                if not custom_data:
+                    # V stores the vectors used in tensor decomp
+                    # V[vector number][rank] = 1D vector
+                    # Values in V are restricted from clip_lo to clip_hi
+                    V = [np.random.uniform(self.clip_lo, self.clip_hi, (self.td_N, v))
+                         for v in self.td_sizes[layer][num]]
+                    ret[typ + 'V' + str(layer)] = V
 
-                # a is the coefficient of output of rank r (M * a)
-                ret[typ + 'a' + str(layer)] = np.ones((self.td_N)) / self.td_N
+                    # a is the coefficient of output of rank r (M * a)
+                    ret[typ + 'a' + str(layer)] = np.ones((self.td_N)) / self.td_N
 
-                # b is the constant of output of rank r (M + b)
-                # ret[typ + 'b' + str(layer)] = np.zeros((self.td_N))
+                    # b is the constant of output of rank r (M + b)
+                    ret[typ + 'b' + str(layer)] = np.zeros((self.td_N))
+                else:
+                    mat = scipy.io.loadmat('cp_decomp_test/factors_16.mat')
+                    V = [mat['A'].T, mat['B'].T, mat['C'].T, mat['D'].T]
+                    ret[typ + 'V' + str(layer)] = V
 
-                # Load custom data
-                # mat = scipy.io.loadmat('cp_decomp_test/factors_16.mat')
-                # V = [mat['A'].T, mat['B'].T, mat['C'].T, mat['D'].T]
-                # V = [mat['A'].T, mat['B'].T, mat['C'].T]
-                # ret[typ + 'V' + str(layer)] = V
-
-                # ret[typ + 'a' + str(layer)] = np.ones((self.td_N))
+                    ret[typ + 'a' + str(layer)] = np.ones((self.td_N))
 
         return ret
 
