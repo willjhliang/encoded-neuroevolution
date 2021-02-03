@@ -496,7 +496,7 @@ class EGA:
                         prev_fitness = float(prev_fitness[1])
                         if prev_fitness == fitness[0]:  # Plateaued
                             print('Decreased mutation scale')
-                            self.td_mut_scale_V /= 3
+                            self.td_mut_scale_V /= 2
                             self.td_mut_scale_a /= 2
                             self.td_mut_scale_b /= 2
                             self.decoder.mut_scale_V = self.td_mut_scale_V
