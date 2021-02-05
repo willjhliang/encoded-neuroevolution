@@ -17,6 +17,7 @@ import numpy as np
 import tensorflow as tf
 import time
 import multiprocessing as mp
+import pprint
 
 
 class EGA:
@@ -346,6 +347,12 @@ class EGA:
         # Preparing records and files
         if self.run_name != '':
             history = open(self.run_name + '/hist.txt', 'a+')
+            params = open(self.run_name + '/params.txt', 'a+')
+            values = self.__dict__.copy()
+            values.pop('pop')
+            params.write(pprint.pformat(values))
+            params.write('\n')
+            params.close()
 
         if self.problem_name[0:5] == 'snake':
             model = self.get_tf_model()
@@ -494,8 +501,8 @@ class EGA:
                     if t > self.plateau_iter:
                         prev_fitness = lines[-self.plateau_iter].split()
                         prev_fitness = float(prev_fitness[1])
-                        if prev_fitness == fitness[0]:  # Plateaued
-                            print('Decreased mutation scale')
+                        if prev_fitness == round(fitness[0], 2):  # Plateaued
+                            print('Decreased mutation scale at iteration ' + str(t))
                             self.td_mut_scale_V /= 2
                             self.td_mut_scale_a /= 2
                             self.td_mut_scale_b /= 2

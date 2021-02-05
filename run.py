@@ -73,11 +73,12 @@ def testError():
 def stepRank(rank):
     past_pop = np.array([])
     load_iter = 0
+    iterations_per = 1000
     for r in range(1, rank + 1):
-        ega = EGA('weights', 0, r, 0, 0, iterations=1000, pop_size=200,
+        ega = EGA('weights', 0, r, 0, 0, iterations=iterations_per, pop_size=200,
                   run_name=run_name, ckpt_period=100,
                   load_ckpt=False, load_name='',
-                  load_iter=load_iter)
+                  load_iter=load_iter, plateau_iter=200)
         ega.initialize_pop()
 
         # Set up population with previous run
@@ -102,7 +103,7 @@ def stepRank(rank):
 
         ega.run()
 
-        load_iter += 10
+        load_iter += iterations_per
         past_pop = []
         for p in range(ega.pop_size):
             past_pop.append(ega.expand_decoder(ega.pop[p]))
@@ -117,10 +118,12 @@ if __name__ == '__main__':
         load_name = input('Load from: ')
         load_iter = int(input('Iteration: '))
 
-    # ega = EGA('weights', 0, 16, 0, 0, iterations=10000, pop_size=200,
-    #           run_name=run_name, ckpt_period=100,
+    # ega = EGA('weights', 0, 16, 0, 0, iterations=100, pop_size=200,
+    #           run_name=run_name, ckpt_period=1,
     #           load_ckpt=load_ckpt, load_name=load_name,
-    #           load_iter=load_iter, mut_prob=0.3, cross_prob=0.7, par_ratio=0.3)
-    # ega.test()
+    #           load_iter=load_iter, mut_prob=0.3, cross_prob=0.7, par_ratio=0.3,
+    #           plateau_iter=1)
+    # ega.initialize_pop()
+    # ega.run()
     # print(testError())
     stepRank(16)
