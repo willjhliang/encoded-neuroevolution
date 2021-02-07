@@ -26,7 +26,7 @@ class EGA:
                  par_ratio=0.3, run_name='', ckpt_period=25,
                  load_ckpt=False, load_name='', load_iter='-1',
                  td_mut_scale_V=1e-2, td_mut_scale_a=1e-4,
-                 td_mut_scale_b=1e-6, plateau_iter=200):
+                 td_mut_scale_b=1e-6, plateau_len=200):
 
         # Initializing globals
         self.iterations = iterations
@@ -40,7 +40,8 @@ class EGA:
         self.td_mut_scale_V = td_mut_scale_V
         self.td_mut_scale_a = td_mut_scale_a
         self.td_mut_scale_b = td_mut_scale_b
-        self.plateau_iter = plateau_iter
+        self.plateau_len = plateau_len
+        self.plateau_start = 0
 
         # Setting problem
         self.problem = None
@@ -493,15 +494,14 @@ class EGA:
                 idx = np.searchsorted(cum_prob, np.random.random())
                 par[i] = self.pop[idx].copy()
 
-            # Performing crossover and mutation
-
-            if self.run_name != '':
+            # Check plateau
+            if self.run_name != '' and t > 0:
                 with open(self.run_name + '/hist.txt', 'r') as read_hist:
-                    lines = read_hist.readlines()
-                    if t > self.plateau_iter:
-                        prev_fitness = lines[-self.plateau_iter].split()
-                        prev_fitness = float(prev_fitness[1])
-                        if prev_fitness == round(fitness[0], 2):  # Plateaued
+                    line = read_hist.readlines()[-1]
+                    prev_fitness = float(line.split()[1])
+                    if round(fitness[0], 2) != prev_fitness:  # New plateau starts now
+                        self.plateau_start = t
+                    if t >= self.plataeu_start + self.plateau_len:
                             print('Decreased mutation scale at iteration ' + str(t))
                             self.td_mut_scale_V /= 2
                             self.td_mut_scale_a /= 2
@@ -509,7 +509,9 @@ class EGA:
                             self.decoder.mut_scale_V = self.td_mut_scale_V
                             self.decoder.mut_scale_a = self.td_mut_scale_a
                             self.decoder.mut_scale_b = self.td_mut_scale_b
+                            self.plateau_start = t
 
+            # Performing crossover and mutation
             eff = np.array([False] * self.par_size)
             par_ct = 0
             while par_ct < 1:
