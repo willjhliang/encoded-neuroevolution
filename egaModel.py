@@ -501,7 +501,7 @@ class EGA:
                 par[i] = self.pop[idx].copy()
 
             # Check plateau
-            if self.run_name != '' and t > 0:
+            if self.run_name != '' and t > 1:
                 with open(self.run_name + '/hist.txt', 'r') as read_hist:
                     line = read_hist.readlines()[-2]
                     prev_fitness = float(line.split()[1])
