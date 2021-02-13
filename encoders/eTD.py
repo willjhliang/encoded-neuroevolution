@@ -13,6 +13,7 @@ class ETD:
         self.mut_scale_a = mut_scale_a
         self.mut_scale_b = mut_scale_b
 
+        self.compressed_id = np.array([])
         self.compressed_type = np.array([])
         # for layer in range(len(self.td_sizes)):
         #     if self.td_sizes[layer] == []:
@@ -37,20 +38,24 @@ class ETD:
             for num, typ in enumerate(['W', 'b']):
                 if np.sum(self.td_sizes[layer][num]) == 0:
                     continue
-                for v in self.td_sizes[layer][num]:
+                for vi, v in enumerate(self.td_sizes[layer][num]):
+                    for i in range(self.td_N):
+                        self.compressed_id = np.concatenate((self.compressed_id,
+                                                             np.array([typ + 'V' + str(layer) + '_' + str(i) + '_' + str(vi)] * v)))
+
                     size = v * self.td_N
                     self.compressed_type = np.concatenate((self.compressed_type,
-                                                           np.array(['null'] * (size - v))))
+                                                           np.array(['nV'] * (size - v))))
                     self.compressed_type = np.concatenate((self.compressed_type,
                                                            np.array(['V'] * v)))
+                for i in range(self.td_N):
+                    self.compressed_id = np.concatenate((self.compressed_id,
+                                                         np.array([typ + 'a' + str(layer) + '_' + str(i)])))
                 size = self.td_N
                 self.compressed_type = np.concatenate((self.compressed_type,
-                                                       np.array(['null'] * (size - 1))))
+                                                       np.array(['na'] * (size - 1))))
                 self.compressed_type = np.concatenate((self.compressed_type,
                                                        np.array(['a'] * 1)))
-                # size = self.td_N
-                # self.compressed_type = np.concatenate((self.compressed_type,
-                #                                        np.array(['b'] * size)))
 
         self.size = len(self.compressed_type)
 
@@ -124,7 +129,8 @@ class ETD:
                 # b, decoder = np.split(decoder, [self.td_N])
                 # ret[typ + 'b' + str(layer)] = b
 
-        return ret, decoder[self.size:]
+        return ret
+        # return ret, decoder[self.size:]
 
     def decode(self, decoder):
         ret = {}
@@ -156,16 +162,34 @@ class ETD:
         return ret
 
     def clip(self, x):
-        x, y = np.split(x, [self.size])  # y is unrelated to current encoder
+        # x, y = np.split(x, [self.size])  # y is unrelated to current encoder
+
         z = x[self.compressed_type == 'V']
         z[z < self.clip_lo] = self.clip_lo
         z[z > self.clip_hi] = self.clip_hi
         x[self.compressed_type == 'V'] = z
 
-        return x, y
+        return x
+        # return x, y
+
+    def cross(self, x, y):
+        c1 = x.copy()
+        c2 = y.copy()
+        for i in range(1, self.compress_len):
+            if np.random.random() < 0.5:
+                curr = self.compressed_id[i]
+                match = c1[c1 == curr]
+                if curr[0] == 'V' or curr[0] == 'a':
+                    c1[match] = y[match].copy()
+                    c2[match] = x[match].copy()
+
+        c1 = self.clip(c1)
+        c2 = self.clip(c2)
+
+        return c1, c2
 
     def mut(self, x, prob):
-        x, y = np.split(x, [self.size])  # y is unrelated to current encoder
+        # x, y = np.split(x, [self.size])  # y is unrelated to current encoder
         rand = np.random.rand(self.size)
         mut = x[rand < prob]
         mut_clip = self.compressed_type[rand < prob]
@@ -173,8 +197,7 @@ class ETD:
                                                  np.shape(mut[mut_clip == 'V']))
         mut[mut_clip == 'a'] += np.random.normal(0, self.mut_scale_a,
                                                  np.shape(mut[mut_clip == 'a']))
-        # mut[mut_clip == 'b'] += np.random.normal(0, self.mut_scale_b,
-        #                                          np.shape(mut[mut_clip == 'b']))
         x[rand < prob] = mut
 
-        return x, y
+        return x
+        # return x, y

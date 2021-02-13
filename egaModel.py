@@ -222,7 +222,7 @@ class EGA:
         return ret
 
     def expand_decoder(self, decoder):
-        ret, _ = self.decoder.expand_decoder(decoder[1:])
+        ret = self.decoder.expand_decoder(decoder[1:])
         ret['id'] = decoder[0]
 
         # ret = {'id': decoder[0]}
@@ -289,7 +289,7 @@ class EGA:
         return ret
 
     def clip(self, decoder):
-        ret, _ = self.decoder.clip(decoder[1:])
+        ret = self.decoder.clip(decoder[1:])
         ret = np.concatenate((np.array([decoder[0]], copy=True), ret))
 
         # ret = np.array([decoder[0]], copy=True)
@@ -300,20 +300,26 @@ class EGA:
 
         return ret
 
-    def cross(self, x, y):
-        c1 = x.copy()
-        c2 = y.copy()
-        for i in range(1, self.compress_len):
-            if np.random.random() < 0.5:
-                c1[i] = y[i].copy()
-                c2[i] = x[i].copy()
-        c1 = self.clip(c1)
-        c2 = self.clip(c2)
+    def cross(self, decoder1, decoder2):
+        ret1, ret2 = self.decoder.cross(decoder1[1:], decoder2[1:])
+        ret1 = np.concatenate((np.array([decoder1[0]], copy=True), ret1))
+        ret2 = np.concatenate((np.array([decoder2[0]], copy=True), ret2))
 
-        return c1, c2
+        return ret1, ret2
+
+        # c1 = x.copy()
+        # c2 = y.copy()
+        # for i in range(1, self.compress_len):
+        #     if np.random.random() < 0.5:
+        #         c1[i] = y[i].copy()
+        #         c2[i] = x[i].copy()
+        # c1 = self.clip(c1)
+        # c2 = self.clip(c2)
+
+        # return c1, c2
 
     def mut(self, decoder):
-        ret, _ = self.decoder.mut(decoder[1:], self.mut_prob)
+        ret = self.decoder.mut(decoder[1:], self.mut_prob)
         ret = np.concatenate((np.array([decoder[0]], copy=True), ret))
 
         # ret = np.array([decoder[0]], copy=True)
@@ -497,11 +503,11 @@ class EGA:
             # Check plateau
             if self.run_name != '' and t > 0:
                 with open(self.run_name + '/hist.txt', 'r') as read_hist:
-                    line = read_hist.readlines()[-1]
+                    line = read_hist.readlines()[-2]
                     prev_fitness = float(line.split()[1])
                     if round(fitness[0], 2) != prev_fitness:  # New plateau starts now
                         self.plateau_start = t
-                    if t >= self.plataeu_start + self.plateau_len:
+                    if t >= self.plateau_start + self.plateau_len:
                             print('Decreased mutation scale at iteration ' + str(t))
                             self.td_mut_scale_V /= 2
                             self.td_mut_scale_a /= 2
