@@ -495,13 +495,13 @@ class EGA:
                 par[i] = self.pop[idx].copy()
 
             # Check plateau
-            if self.run_name != '' and t > 0:
+            if self.run_name != '' and t > 1:
                 with open(self.run_name + '/hist.txt', 'r') as read_hist:
-                    line = read_hist.readlines()[-1]
+                    line = read_hist.readlines()[-2]
                     prev_fitness = float(line.split()[1])
                     if round(fitness[0], 2) != prev_fitness:  # New plateau starts now
                         self.plateau_start = t
-                    if t >= self.plataeu_start + self.plateau_len:
+                    if t >= self.plateau_start + self.plateau_len:
                             print('Decreased mutation scale at iteration ' + str(t))
                             self.td_mut_scale_V /= 2
                             self.td_mut_scale_a /= 2

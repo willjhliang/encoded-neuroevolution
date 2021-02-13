@@ -78,7 +78,7 @@ def stepRank(rank):
         ega = EGA('weights', 0, r, 0, 0, iterations=iterations_per, pop_size=200,
                   run_name=run_name, ckpt_period=100,
                   load_ckpt=False, load_name='',
-                  load_iter=load_iter, plateau_iter=200)
+                  load_iter=load_iter, plateau_len=200)
         ega.initialize_pop()
 
         # Set up population with previous run
