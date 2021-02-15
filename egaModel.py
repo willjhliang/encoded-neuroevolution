@@ -22,9 +22,9 @@ import pprint
 
 class EGA:
     def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100,
-                 pop_size=200, mut_prob=0.3, elite_ratio=0.01, cross_prob=0.7,
-                 par_ratio=0.3, run_name='', ckpt_period=25,
-                 load_ckpt=False, load_name='', load_iter='-1',
+                 pop_size=200, mut_prob=0.3, cross_prob=0.1, elite_ratio=0.01,
+                 par_prob=0.7, par_ratio=0.3, run_name='', ckpt_period=25,
+                 load_info=['False', '_', '_'],
                  td_mut_scale_V=1e-2, td_mut_scale_a=1e-4,
                  td_mut_scale_b=1e-6, plateau_len=200):
 
@@ -32,8 +32,9 @@ class EGA:
         self.iterations = iterations
         self.pop_size = pop_size
         self.mut_prob = mut_prob
-        self.elite_ratio = elite_ratio
         self.cross_prob = cross_prob
+        self.elite_ratio = elite_ratio
+        self.par_prob = par_prob
         self.par_ratio = par_ratio
         self.par_size = (int)(self.par_ratio * self.pop_size)
         self.elite_size = (int)(self.elite_ratio * pop_size)
@@ -65,9 +66,10 @@ class EGA:
             print('Decaying mutation rate will be disabled')
             self.run_name = ''
         self.ckpt_period = ckpt_period
-        self.load_ckpt = load_ckpt
-        self.load_name = 'saves/ega-' + self.problem_name + '-' + load_name
-        self.load_iter = load_iter
+        self.load_ckpt = load_info[0] == 'True'
+        self.load_name = 'saves/ega-' + self.problem_name + '-' + \
+            load_info[1]
+        self.load_iter = int(load_info[2])
 
         ##################################################
         # NETWORK ARCHITECTURE
@@ -103,8 +105,6 @@ class EGA:
             self.layers = [['null']]
             self.layer_shapes = [[[28, 28, 16, 32], [0]]]
             self.layer_sizes = [[28 * 28 * 16 * 32, 0]]
-            # self.layer_shapes = [[[4, 3, 2], [0]]]
-            # self.layer_sizes = [[24, 0]]
 
         ##################################################
         # DECODERS
@@ -301,7 +301,7 @@ class EGA:
         return ret
 
     def cross(self, decoder1, decoder2):
-        ret1, ret2 = self.decoder.cross(decoder1[1:], decoder2[1:])
+        ret1, ret2 = self.decoder.cross(decoder1[1:], decoder2[1:], self.cross_prob)
         ret1 = np.concatenate((np.array([decoder1[0]], copy=True), ret1))
         ret2 = np.concatenate((np.array([decoder2[0]], copy=True), ret2))
 
@@ -333,6 +333,7 @@ class EGA:
             self.pop = np.load(self.load_name + '/iter-' + str(self.load_iter) + '.npy')
             if self.problem_name[0:5] == 'snake':
                 self.food_arr = np.load(self.load_name + '/food.npy').tolist()
+            print('Checkpoint loaded')
         else:
             self.pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
             for p in range(self.pop_size):
@@ -508,21 +509,21 @@ class EGA:
                     if round(fitness[0], 2) != prev_fitness:  # New plateau starts now
                         self.plateau_start = t
                     if t >= self.plateau_start + self.plateau_len:
-                            print('Decreased mutation scale at iteration ' + str(t))
-                            self.td_mut_scale_V /= 2
-                            self.td_mut_scale_a /= 2
-                            self.td_mut_scale_b /= 2
-                            self.decoder.mut_scale_V = self.td_mut_scale_V
-                            self.decoder.mut_scale_a = self.td_mut_scale_a
-                            self.decoder.mut_scale_b = self.td_mut_scale_b
-                            self.plateau_start = t
+                        print('Decreased mutation scale at iteration ' + str(t))
+                        self.td_mut_scale_V /= 2
+                        self.td_mut_scale_a /= 2
+                        self.td_mut_scale_b /= 2
+                        self.decoder.mut_scale_V = self.td_mut_scale_V
+                        self.decoder.mut_scale_a = self.td_mut_scale_a
+                        self.decoder.mut_scale_b = self.td_mut_scale_b
+                        self.plateau_start = t
 
             # Performing crossover and mutation
             eff = np.array([False] * self.par_size)
             par_ct = 0
             while par_ct < 1:
                 for i in range(self.par_size):
-                    if np.random.random() < self.cross_prob:
+                    if np.random.random() < self.par_prob:
                         eff[i] = True
                         par_ct += 1
             eff_par = par[eff].copy()
@@ -533,7 +534,7 @@ class EGA:
                 p1 = eff_par[np.random.randint(0, par_ct)].copy()
                 p2 = eff_par[np.random.randint(0, par_ct)].copy()
                 c1, c2 = p1, p2
-                # c1, c2 = self.cross(p1, p2)
+                c1, c2 = self.cross(p1, p2)
 
                 self.pop[i] = c1
                 self.pop[i] = self.mut(self.pop[i])
@@ -546,7 +547,8 @@ class EGA:
                     self.pop[i + 1][0] = self.count
                     self.count += 1
 
-        history.close()
+        if self.run_name != '':
+            history.close()
         if self.problem_name == 'weights':
             pool.close()
 

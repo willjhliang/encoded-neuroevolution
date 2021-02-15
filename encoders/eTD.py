@@ -13,8 +13,19 @@ class ETD:
         self.mut_scale_a = mut_scale_a
         self.mut_scale_b = mut_scale_b
 
-        self.compressed_id = np.array([])
-        self.compressed_type = np.array([])
+        # V: valueType_V_layer_rankNum_vectorNum
+        # a: valueType_a_layer_rankNum
+        self.compressed_id = self.compress_decoder(self.get_decoder(as_id=True))
+        self.compressed_type = []
+        for i in self.compressed_id:
+            if int(i[4]) == self.td_N - 1:
+                self.compressed_type.append(i[1])
+            else:
+                self.compressed_type.append('n' + i[1])
+        self.compressed_type = np.array(self.compressed_type)
+
+        # self.compressed_id = np.array([])
+        # self.compressed_type = np.array([])
         # for layer in range(len(self.td_sizes)):
         #     if self.td_sizes[layer] == []:
         #         continue
@@ -32,37 +43,37 @@ class ETD:
         #         #                                        np.array(['b'] * size)))
 
         # Used in steprank to protect old values
-        for layer in range(len(self.td_sizes)):
-            if self.td_sizes[layer] == []:
-                continue
-            for num, typ in enumerate(['W', 'b']):
-                if np.sum(self.td_sizes[layer][num]) == 0:
-                    continue
-                for vi, v in enumerate(self.td_sizes[layer][num]):
-                    for i in range(self.td_N):
-                        self.compressed_id = np.concatenate((self.compressed_id,
-                                                             np.array([typ + 'V' + str(layer) + '_' + str(i) + '_' + str(vi)] * v)))
+        # for layer in range(len(self.td_sizes)):
+        #     if self.td_sizes[layer] == []:
+        #         continue
+        #     for num, typ in enumerate(['W', 'b']):
+        #         if np.sum(self.td_sizes[layer][num]) == 0:
+        #             continue
+        #         for vi, v in enumerate(self.td_sizes[layer][num]):
+        #             for i in range(self.td_N):
+        #                 self.compressed_id = np.concatenate((self.compressed_id,
+        #                                                      np.array([typ + 'V' + str(layer) + '_' + str(i) + '_' + str(vi)] * v)))
 
-                    size = v * self.td_N
-                    self.compressed_type = np.concatenate((self.compressed_type,
-                                                           np.array(['nV'] * (size - v))))
-                    self.compressed_type = np.concatenate((self.compressed_type,
-                                                           np.array(['V'] * v)))
-                for i in range(self.td_N):
-                    self.compressed_id = np.concatenate((self.compressed_id,
-                                                         np.array([typ + 'a' + str(layer) + '_' + str(i)])))
-                size = self.td_N
-                self.compressed_type = np.concatenate((self.compressed_type,
-                                                       np.array(['na'] * (size - 1))))
-                self.compressed_type = np.concatenate((self.compressed_type,
-                                                       np.array(['a'] * 1)))
+        #             size = v * self.td_N
+        #             self.compressed_type = np.concatenate((self.compressed_type,
+        #                                                    np.array(['nV'] * (size - v))))
+        #             self.compressed_type = np.concatenate((self.compressed_type,
+        #                                                    np.array(['V'] * v)))
+        #         for i in range(self.td_N):
+        #             self.compressed_id = np.concatenate((self.compressed_id,
+        #                                                  np.array([typ + 'a' + str(layer) + '_' + str(i)])))
+        #         size = self.td_N
+        #         self.compressed_type = np.concatenate((self.compressed_type,
+        #                                                np.array(['na'] * (size - 1))))
+        #         self.compressed_type = np.concatenate((self.compressed_type,
+        #                                                np.array(['a'] * 1)))
 
         self.size = len(self.compressed_type)
 
         self.clip_lo = -1
         self.clip_hi = 1
 
-    def get_decoder(self, custom_data=False):
+    def get_decoder(self, custom_data=False, as_id=False):
         ret = {}
         for layer in range(len(self.td_sizes)):
             if self.td_sizes[layer] == []:
@@ -74,15 +85,27 @@ class ETD:
                     # V stores the vectors used in tensor decomp
                     # V[vector number][rank] = 1D vector
                     # Values in V are restricted from clip_lo to clip_hi
-                    V = [np.random.uniform(self.clip_lo, self.clip_hi, (self.td_N, v))
-                         for v in self.td_sizes[layer][num]]
+                    if not as_id:
+                        V = [np.random.uniform(self.clip_lo, self.clip_hi, (self.td_N, v))
+                             for v in self.td_sizes[layer][num]]
+                    else:
+                        V = np.array([])
+                        for vi, v in enumerate(self.td_sizes[layer][num]):
+                            for i in range(self.td_N):
+                                V = np.concatenate((V, np.array([typ + 'V' + str(layer) + '_' + str(i) + '_' + str(vi)] * v)))
                     ret[typ + 'V' + str(layer)] = V
 
                     # a is the coefficient of output of rank r (M * a)
-                    ret[typ + 'a' + str(layer)] = np.ones((self.td_N)) / self.td_N
+                    if not as_id:
+                        a = np.ones((self.td_N)) / self.td_N
+                    else:
+                        a = np.array([])
+                        for i in range(self.td_N):
+                            a = np.concatenate((a, np.array([typ + 'a' + str(layer) + '_' + str(i)])))
+                    ret[typ + 'a' + str(layer)] = a
 
                     # b is the constant of output of rank r (M + b)
-                    ret[typ + 'b' + str(layer)] = np.zeros((self.td_N))
+                    # ret[typ + 'b' + str(layer)] = np.zeros((self.td_N))
                 else:
                     mat = scipy.io.loadmat('cp_decomp_test/factors_16.mat')
                     V = [mat['A'].T, mat['B'].T, mat['C'].T, mat['D'].T]
@@ -172,16 +195,18 @@ class ETD:
         return x
         # return x, y
 
-    def cross(self, x, y):
+    def cross(self, x, y, prob):
         c1 = x.copy()
         c2 = y.copy()
-        for i in range(1, self.compress_len):
-            if np.random.random() < 0.5:
-                curr = self.compressed_id[i]
-                match = c1[c1 == curr]
-                if curr[0] == 'V' or curr[0] == 'a':
+        seen = []
+        for i in range(0, self.size):
+            curr = self.compressed_id[i]
+            if np.random.random() < prob and curr not in seen:
+                match = self.compressed_id == curr
+                if self.compressed_type[i] == 'V' or self.compressed_type[i] == 'a':
                     c1[match] = y[match].copy()
                     c2[match] = x[match].copy()
+            seen.append(curr)
 
         c1 = self.clip(c1)
         c2 = self.clip(c2)

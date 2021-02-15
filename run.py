@@ -25,20 +25,18 @@ def optimize_td_mut_scale(runs_per_pos=1):
         for i in range(runs_per_pos):
             ega = EGA('weights', 0, 16, 0, 0, iterations=3000,
                       run_name=run_name, ckpt_period=100,
-                      load_ckpt=load_ckpt, load_name=load_name,
-                      load_iter=load_iter, td_mut_scale_b=scale)
+                      load_info=['False', '_', '_'], td_mut_scale_b=scale)
             r += ega.run()
         res.append(r / runs_per_pos)
     return res
 
 
 def print_example():
-    pop = np.load('saves/ega-weights-' + load_name + '/iter-' +
-                  str(load_iter) + '.npy')
+    pop = np.load('saves/ega-weights-' + load_info[1] + '/iter-' +
+                  load_info[2] + '.npy')
     ega = EGA('weights', 0, 16, 0, 0, iterations=-1,
               run_name=run_name, ckpt_period=-1,
-              load_ckpt=load_ckpt, load_name=load_name,
-              load_iter=load_iter)
+              load_info=load_info)
     res = ega.decode(pop[0])
     ega.test(pop)
     return res['W0']
@@ -55,16 +53,14 @@ def profileCall():
     # Make sure to set problem as MINIMIZED weights
     ega = EGA('weights', 0, 16, 0, 0, iterations=1000,
               run_name=run_name, ckpt_period=100,
-              load_ckpt=load_ckpt, load_name=load_name,
-              load_iter=load_iter)
+              load_info=load_info)
     ega.run()
 
 
 def testError():
     ega = EGA('weights', 0, 16, 0, 0, iterations=1, pop_size=2,
               run_name=run_name, ckpt_period=1,
-              load_ckpt=load_ckpt, load_name=load_name,
-              load_iter=load_iter)
+              load_info=load_info)
     ind = ega.compress_decoder(ega.get_decoder(custom_data=True))
     error = ega.problem.test(ega.decode(ind)['W0'])
     return error
@@ -77,8 +73,7 @@ def stepRank(rank):
     for r in range(1, rank + 1):
         ega = EGA('weights', 0, r, 0, 0, iterations=iterations_per, pop_size=200,
                   run_name=run_name, ckpt_period=100,
-                  load_ckpt=False, load_name='',
-                  load_iter=load_iter, plateau_len=200)
+                  load_info=['False', '_', str(load_iter)], plateau_len=200)
         ega.initialize_pop()
 
         # Set up population with previous run
@@ -111,18 +106,14 @@ def stepRank(rank):
 
 if __name__ == '__main__':
     run_name = input('Run name: ')
-    load_ckpt = input('Load checkpoint? (y/n) ') == 'y'
-    load_name = 'null'
-    load_iter = -1
-    if load_ckpt:
-        load_name = input('Load from: ')
-        load_iter = int(input('Iteration: '))
+    load_info = input('Load checkpoint info (bool name iter): ')
+    if load_info == '':
+        load_info = ['False', '_', '-1']
+    else:
+        load_info = load_info.split()
 
-    # ega = EGA('weights', 0, 16, 0, 0, iterations=100, pop_size=200,
-    #           run_name=run_name, ckpt_period=1,
-    #           load_ckpt=load_ckpt, load_name=load_name,
-    #           load_iter=load_iter, mut_prob=0.3, cross_prob=0.7, par_ratio=0.3,
-    #           plateau_iter=1)
+    # ega = EGA('weights', 0, 2, 0, 0, iterations=10, pop_size=100,
+    #           run_name=run_name, ckpt_period=1, load_info=load_info, plateau_len=100)
     # ega.initialize_pop()
     # ega.run()
     # print(testError())
