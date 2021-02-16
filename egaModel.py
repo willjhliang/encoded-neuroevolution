@@ -26,7 +26,7 @@ class EGA:
                  par_prob=0.7, par_ratio=0.3, run_name='', ckpt_period=25,
                  load_info=['False', '_', '_'],
                  td_mut_scale_V=1e-2, td_mut_scale_a=1e-4,
-                 td_mut_scale_b=1e-6, plateau_len=200):
+                 td_mut_scale_b=1e-6, plateau_len=200, decay_mult=1):
 
         # Initializing globals
         self.iterations = iterations
@@ -43,6 +43,7 @@ class EGA:
         self.td_mut_scale_b = td_mut_scale_b
         self.plateau_len = plateau_len
         self.plateau_start = 0
+        self.decay_mult = decay_mult
 
         # Setting problem
         self.problem = None
@@ -510,9 +511,9 @@ class EGA:
                         self.plateau_start = t
                     if t >= self.plateau_start + self.plateau_len:
                         print('Decreased mutation scale at iteration ' + str(t))
-                        self.td_mut_scale_V /= 2
-                        self.td_mut_scale_a /= 2
-                        self.td_mut_scale_b /= 2
+                        self.td_mut_scale_V *= self.decay_mult
+                        self.td_mut_scale_a *= self.decay_mult
+                        self.td_mut_scale_b *= self.decay_mult
                         self.decoder.mut_scale_V = self.td_mut_scale_V
                         self.decoder.mut_scale_a = self.td_mut_scale_a
                         self.decoder.mut_scale_b = self.td_mut_scale_b
