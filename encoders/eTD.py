@@ -16,6 +16,11 @@ class ETD:
         # V: valueType_V_layer_rankNum_vectorNum
         # a: valueType_a_layer_rankNum
         self.compressed_id = self.compress_decoder(self.get_decoder(as_id=True))
+        self.ids = []
+        for i in self.compressed_id:
+            if i not in self.ids:
+                self.ids.append(i)
+        self.ids = np.array(self.ids)
         self.compressed_type = []
         for i in self.compressed_id:
             if int(i[4]) == self.td_N - 1:
@@ -198,15 +203,13 @@ class ETD:
     def cross(self, x, y, prob):
         c1 = x.copy()
         c2 = y.copy()
-        seen = []
-        for i in range(0, self.size):
-            curr = self.compressed_id[i]
-            if np.random.random() < prob and curr not in seen:
-                match = self.compressed_id == curr
-                if self.compressed_type[i] == 'V' or self.compressed_type[i] == 'a':
-                    c1[match] = y[match].copy()
-                    c2[match] = x[match].copy()
-            seen.append(curr)
+        swap = np.random.rand(*self.ids.shape) < prob
+        for i in np.where(swap)[0]:
+            curr = self.ids[i]
+            match = self.compressed_id == curr
+            if self.compressed_type[i] == 'V' or self.compressed_type[i] == 'a':
+                c1[match] = y[match].copy()
+                c2[match] = x[match].copy()
 
         c1 = self.clip(c1)
         c2 = self.clip(c2)
@@ -217,11 +220,11 @@ class ETD:
         # x, y = np.split(x, [self.size])  # y is unrelated to current encoder
         rand = np.random.rand(self.size)
         mut = x[rand < prob]
-        mut_clip = self.compressed_type[rand < prob]
-        mut[mut_clip == 'V'] += np.random.normal(0, self.mut_scale_V,
-                                                 np.shape(mut[mut_clip == 'V']))
-        mut[mut_clip == 'a'] += np.random.normal(0, self.mut_scale_a,
-                                                 np.shape(mut[mut_clip == 'a']))
+        mut_type = self.compressed_type[rand < prob]
+        mut[mut_type == 'V'] += np.random.normal(0, self.mut_scale_V,
+                                                 np.shape(mut[mut_type == 'V']))
+        mut[mut_type == 'a'] += np.random.normal(0, self.mut_scale_a,
+                                                 np.shape(mut[mut_type == 'a']))
         x[rand < prob] = mut
 
         return x

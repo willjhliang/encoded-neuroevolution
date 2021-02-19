@@ -25,7 +25,7 @@ print(tensor_shape)
 ####### CP decompostion
 result = []
 rank_list = []
-for rank in range(16, 17):
+for rank in range(12, 13):
     rank_list.append(int(rank))
     repeat = True
     tensor_dim = len(tensor_shape)

@@ -22,7 +22,7 @@ import pprint
 
 class EGA:
     def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100,
-                 pop_size=200, mut_prob=0.3, cross_prob=0.1, elite_ratio=0.01,
+                 pop_size=200, mut_prob=0.3, cross_prob=0.2, elite_ratio=0.01,
                  par_prob=0.7, par_ratio=0.3, run_name='', ckpt_period=25,
                  load_info=['False', '_', '_'],
                  td_mut_scale_V=1e-2, td_mut_scale_a=1e-4,
