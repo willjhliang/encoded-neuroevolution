@@ -23,7 +23,7 @@ def optimize_td_mut_scale(runs_per_pos=1):
         print('SCALE: ' + str(scale))
         r = 0
         for i in range(runs_per_pos):
-            ega = EGA('weights', 0, 16, 0, 0, iterations=3000,
+            ega = EGA('weights', 16, iterations=3000,
                       run_name=run_name, ckpt_period=100,
                       load_info=['False', '_', '_'], td_mut_scale_b=scale)
             r += ega.run()
@@ -34,7 +34,7 @@ def optimize_td_mut_scale(runs_per_pos=1):
 def print_example():
     pop = np.load('saves/ega-weights-' + load_info[1] + '/iter-' +
                   load_info[2] + '.npy')
-    ega = EGA('weights', 0, 16, 0, 0, iterations=-1,
+    ega = EGA('weights', 16, iterations=-1,
               run_name=run_name, ckpt_period=-1,
               load_info=load_info)
     res = ega.decode(pop[0])
@@ -51,14 +51,14 @@ def profile():
 
 def profileCall():
     # Make sure to set problem as MINIMIZED weights
-    ega = EGA('weights', 0, 16, 0, 0, iterations=1000,
+    ega = EGA('weights', 16, iterations=1000,
               run_name=run_name, ckpt_period=100,
               load_info=load_info)
     ega.run()
 
 
 def testError():
-    ega = EGA('weights', 0, 16, 0, 0, iterations=1, pop_size=2,
+    ega = EGA('weights', 16, iterations=1, pop_size=2,
               run_name=run_name, ckpt_period=1,
               load_info=load_info)
     ind = ega.compress_decoder(ega.get_decoder(custom_data=True))
@@ -71,7 +71,7 @@ def stepRank(rank):
     load_iter = 0
     iterations_per = 1000
     for r in range(1, rank + 1):
-        ega = EGA('weights', 0, r, 0, 0, iterations=iterations_per, pop_size=200,
+        ega = EGA('weights', r, iterations=iterations_per, pop_size=200,
                   run_name=run_name, ckpt_period=100,
                   load_info=['False', '_', str(load_iter)], plateau_len=200)
         ega.initialize_pop()
@@ -112,7 +112,7 @@ if __name__ == '__main__':
     else:
         load_info = load_info.split()
 
-    # ega = EGA('weights', 0, 2, 0, 0, iterations=10, pop_size=100,
+    # ega = EGA('weights', 2, iterations=10, pop_size=100,
     #           run_name=run_name, ckpt_period=1, load_info=load_info, plateau_len=100)
     # ega.initialize_pop()
     # ega.run()

@@ -287,26 +287,26 @@ class EGA:
             match = self.decoder.compressed_id == curr
             if self.decoder.compressed_type[i] == 'V' or \
                     self.decoder.compressed_type[i] == 'a':
-                ret1[match] = decoder2[match].copy()
-                ret2[match] = decoder1[match].copy()
-
-        ret1 = self.clip(ret1)
-        ret2 = self.clip(ret2)
+                ret1[match] = decoder2[1:][match].copy()
+                ret2[match] = decoder1[1:][match].copy()
 
         ret1 = np.concatenate((np.array([decoder1[0]], copy=True), ret1))
         ret2 = np.concatenate((np.array([decoder2[0]], copy=True), ret2))
+
+        ret1 = self.clip(ret1)
+        ret2 = self.clip(ret2)
 
         return ret1, ret2
 
     def mut(self, decoder):
         # ret = self.decoder.mut(decoder[1:], self.mut_prob)
         ret = decoder[1:].copy()
-        rand = np.random.rand(self.size)
+        rand = np.random.rand(self.decoder.size)
         mut = ret[rand < self.mut_prob]
         mut_type = self.decoder.compressed_type[rand < self.mut_prob]
-        mut[mut_type == 'V'] += np.random.normal(0, self.mut_scale_V,
+        mut[mut_type == 'V'] += np.random.normal(0, self.td_mut_scale_V,
                                                  np.shape(mut[mut_type == 'V']))
-        mut[mut_type == 'a'] += np.random.normal(0, self.mut_scale_a,
+        mut[mut_type == 'a'] += np.random.normal(0, self.td_mut_scale_a,
                                                  np.shape(mut[mut_type == 'a']))
         ret[rand < self.mut_prob] = mut
         ret = np.concatenate((np.array([decoder[0]], copy=True), ret))
