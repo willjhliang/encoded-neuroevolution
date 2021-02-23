@@ -21,10 +21,10 @@ import pprint
 
 
 class EGA:
-    def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100,
+    def __init__(self, problem, td_N, iterations=100,
+                 run_name='', ckpt_period=25, load_info=['False', '_', '_'],
                  pop_size=200, mut_prob=0.3, cross_prob=0.2, elite_ratio=0.01,
-                 par_prob=0.7, par_ratio=0.3, run_name='', ckpt_period=25,
-                 load_info=['False', '_', '_'],
+                 par_prob=0.7, par_ratio=0.3,
                  td_mut_scale_V=1e-2, td_mut_scale_a=1e-4,
                  td_mut_scale_b=1e-6, plateau_len=200, decay_mult=1):
 
@@ -275,40 +275,42 @@ class EGA:
         ret = self.decoder.clip(decoder[1:])
         ret = np.concatenate((np.array([decoder[0]], copy=True), ret))
 
-        # ret = np.array([decoder[0]], copy=True)
-        # decoder = decoder[1:]
-        # for e in self.decoder_methods:
-        #     tret, decoder = e.clip(decoder)
-        #     ret = np.concatenate((ret, tret))
-
         return ret
 
     def cross(self, decoder1, decoder2):
-        ret1, ret2 = self.decoder.cross(decoder1[1:], decoder2[1:], self.cross_prob)
+        # ret1, ret2 = self.decoder.cross(decoder1[1:], decoder2[1:], self.cross_prob)
+        ret1 = decoder1[1:].copy()
+        ret2 = decoder2[1:].copy()
+        swap = np.random.rand(*self.decoder.ids.shape) < self.cross_prob
+        for i in np.where(swap)[0]:
+            curr = self.decoder.ids[i]
+            match = self.decoder.compressed_id == curr
+            if self.decoder.compressed_type[i] == 'V' or \
+                    self.decoder.compressed_type[i] == 'a':
+                ret1[match] = decoder2[match].copy()
+                ret2[match] = decoder1[match].copy()
+
+        ret1 = self.clip(ret1)
+        ret2 = self.clip(ret2)
+
         ret1 = np.concatenate((np.array([decoder1[0]], copy=True), ret1))
         ret2 = np.concatenate((np.array([decoder2[0]], copy=True), ret2))
 
         return ret1, ret2
 
-        # c1 = x.copy()
-        # c2 = y.copy()
-        # for i in range(1, self.compress_len):
-        #     if np.random.random() < 0.5:
-        #         c1[i] = y[i].copy()
-        #         c2[i] = x[i].copy()
-        # c1 = self.clip(c1)
-        # c2 = self.clip(c2)
-
-        # return c1, c2
-
     def mut(self, decoder):
-        ret = self.decoder.mut(decoder[1:], self.mut_prob)
+        # ret = self.decoder.mut(decoder[1:], self.mut_prob)
+        ret = decoder[1:].copy()
+        rand = np.random.rand(self.size)
+        mut = ret[rand < self.mut_prob]
+        mut_type = self.decoder.compressed_type[rand < self.mut_prob]
+        mut[mut_type == 'V'] += np.random.normal(0, self.mut_scale_V,
+                                                 np.shape(mut[mut_type == 'V']))
+        mut[mut_type == 'a'] += np.random.normal(0, self.mut_scale_a,
+                                                 np.shape(mut[mut_type == 'a']))
+        ret[rand < self.mut_prob] = mut
         ret = np.concatenate((np.array([decoder[0]], copy=True), ret))
 
-        # ret = np.array([decoder[0]], copy=True)
-        # for e in self.decoder_methods:
-        #     tret, decoder = e.mut(decoder[1:], self.mut_prob)
-        #     ret = np.concatenate((ret, tret))
         return ret
 
     def update_params(self, t, fitness):

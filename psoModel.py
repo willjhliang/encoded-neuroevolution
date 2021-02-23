@@ -17,19 +17,24 @@ import numpy as np
 import tensorflow as tf
 import time
 import multiprocessing as mp
+import random
 import pprint
 
 
 class PSO:
-    def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100,
-                 pop_size=200, run_name='', ckpt_period=25,
-                 load_info=['False', '_', '_'],
-                 td_mut_scale_V=1e-2, td_mut_scale_a=1e-4,
-                 td_mut_scale_b=1e-6, plateau_len=200, decay_mult=1):
+    def __init__(self, problem, td_N, iterations=100,
+                 run_name='', ckpt_period=25, load_info=['False', '_', '_'],
+                 pop_size=200, W=0.5, c1=0.8, c2=0.9):
 
         # Initializing globals
         self.iterations = iterations
         self.pop_size = pop_size
+        self.velocity = None
+        self.global_best = {'fitness': None, 'decoder': None}
+        self.personal_best = {'fitness': None, 'decoder': None}
+        self.W = W
+        self.c1 = c1
+        self.c2 = c2
 
         # Setting problem
         self.problem = None
@@ -269,51 +274,19 @@ class PSO:
 
         return ret
 
-    def cross(self, decoder1, decoder2):
-        ret1, ret2 = self.decoder.cross(decoder1[1:], decoder2[1:], self.cross_prob)
-        ret1 = np.concatenate((np.array([decoder1[0]], copy=True), ret1))
-        ret2 = np.concatenate((np.array([decoder2[0]], copy=True), ret2))
-
-        return ret1, ret2
-
-        # c1 = x.copy()
-        # c2 = y.copy()
-        # for i in range(1, self.compress_len):
-        #     if np.random.random() < 0.5:
-        #         c1[i] = y[i].copy()
-        #         c2[i] = x[i].copy()
-        # c1 = self.clip(c1)
-        # c2 = self.clip(c2)
-
-        # return c1, c2
-
-    def mut(self, decoder):
-        ret = self.decoder.mut(decoder[1:], self.mut_prob)
+    def move(self, decoder, velocity, personal_best):
+        ret = decoder[1:].copy()
+        v = self.W * velocity + \
+            self.c1 * random.random() * (personal_best - decoder) + \
+            self.c2 * random.random() * (self.global_best['decoder'] - decoder)
+        ret = ret + v
         ret = np.concatenate((np.array([decoder[0]], copy=True), ret))
 
-        # ret = np.array([decoder[0]], copy=True)
-        # for e in self.decoder_methods:
-        #     tret, decoder = e.mut(decoder[1:], self.mut_prob)
-        #     ret = np.concatenate((ret, tret))
-        return ret
+        return ret, v
 
-    def update_params(self, t, fitness):
-        # Check plateau
-        if self.run_name != '' and t > 1:
-            with open(self.run_name + '/hist.txt', 'r') as read_hist:
-                line = read_hist.readlines()[-1]
-                prev_fitness = float(line.split()[1])
-                if round(fitness[0], 2) != prev_fitness:  # New plateau starts now
-                    self.plateau_start = t
-                if t >= self.plateau_start + self.plateau_len:
-                    print('Decreased mutation scale at iteration ' + str(t))
-                    self.td_mut_scale_V *= self.decay_mult
-                    self.td_mut_scale_a *= self.decay_mult
-                    self.td_mut_scale_b *= self.decay_mult
-                    self.decoder.mut_scale_V = self.td_mut_scale_V
-                    self.decoder.mut_scale_a = self.td_mut_scale_a
-                    self.decoder.mut_scale_b = self.td_mut_scale_b
-                    self.plateau_start = t
+    def update_params(self):
+        # TODO changing c1 and c2
+        pass
 
 
     def initialize_pop(self):
@@ -380,16 +353,29 @@ class PSO:
                     steps[p], score[p], art_score[p], move_distributions[p], _, _, _ \
                         = self.problem.test(model, food_arr=self.food_arr)
                     fitness[p] = art_score[p]
+                    if fitness[p] > self.global_best['fitness']:
+                        self.global_best['decoder'] = self.pop[p]
+                    if fitness[p] > self.personal_best['fitness'][p]:
+                        self.personal_best['decoder'][p] = self.pop[p]
             if self.problem_name == 'MNIST':
                 for p in range(self.pop_size):
                     model = self.set_tf_weights(model, self.decode(self.pop[p]))
                     cce[p], acc[p] = self.problem.test(model)
                     fitness[p] = cce[p]
+                    if fitness[p] < self.global_best['fitness']:
+                        self.global_best['decoder'] = self.pop[p]
+                    if fitness[p] < self.personal_best['fitness'][p]:
+                        self.personal_best['decoder'][p] = self.pop[p]
             if self.problem_name == 'weights':
                 diff = pool.map(self.problem.test,
                                 [self.decode(ind)['W0'] for ind in self.pop])
                 diff = np.array(diff)
                 fitness = diff
+                for p in range(self.pop_size):
+                    if fitness[p] < self.global_best['fitness']:
+                        self.global_best['decoder'] = self.pop[p]
+                    if fitness[p] < self.personal_best['fitness'][p]:
+                        self.personal_best['decoder'][p] = self.pop[p]
 
             # Sorting population
             if self.problem_name[0:5] == 'snake':
@@ -408,54 +394,9 @@ class PSO:
             self.pop = self.pop[sort]
             fitness = fitness[sort]
 
-            # Calculating survival probabilities
-            prob = np.array(fitness, copy=True)
-            if self.problem_name[0:5] == 'snake':  # Bigger is better
-                continue
-            if self.problem_name == 'MNIST':  # Smaller is better
-                prob = np.amax(prob) - prob
-            if self.problem_name == 'weights':  # Smaller is better
-                prob = np.amax(prob) - prob
-            prob = (prob - np.amin(prob)) / (np.amax(prob) - np.amin(prob))
-            prob = prob / np.sum(prob)
-            cum_prob = np.cumsum(prob)
-
-            # Finding parents
-            par = np.array([np.zeros(self.compress_len)] * self.par_size)
-            for i in range(self.elite_size):
-                par[i] = self.pop[i].copy()
-            for i in range(self.elite_size, self.par_size):
-                idx = np.searchsorted(cum_prob, np.random.random())
-                par[i] = self.pop[idx].copy()
-
-            # Performing crossover and mutation
-            eff = np.array([False] * self.par_size)
-            par_ct = 0
-            while par_ct < 1:
-                for i in range(self.par_size):
-                    if np.random.random() < self.par_prob:
-                        eff[i] = True
-                        par_ct += 1
-            eff_par = par[eff].copy()
-            self.pop = np.array([np.zeros(self.compress_len)] * self.pop_size)
-            for i in range(self.par_size):
-                self.pop[i] = par[i].copy()
-            for i in range(self.par_size, self.pop_size, 2):
-                p1 = eff_par[np.random.randint(0, par_ct)].copy()
-                p2 = eff_par[np.random.randint(0, par_ct)].copy()
-                c1, c2 = p1, p2
-                c1, c2 = self.cross(p1, p2)
-
-                self.pop[i] = c1
-                self.pop[i] = self.mut(self.pop[i])
-                self.pop[i][0] = self.count
-                self.count += 1
-
-                if i + 1 < self.pop_size:
-                    self.pop[i + 1] = c2
-                    self.pop[i + 1] = self.mut(self.pop[i + 1])
-                    self.pop[i + 1][0] = self.count
-                    self.count += 1
+            # Moving particles
+            for i in range(self.pop_size):
+                self.pop[i], self.velocity[i] = self.move(self.pop[i], self.velocity[i], self.personal_best[i])
 
             self.update_params(t, fitness)
 
