@@ -20,10 +20,9 @@ import multiprocessing as mp
 import pprint
 
 
-class EGA:
+class PSO:
     def __init__(self, problem, ar_N, td_N, rand_N, nn_N, iterations=100,
-                 pop_size=200, mut_prob=0.3, cross_prob=0.2, elite_ratio=0.01,
-                 par_prob=0.7, par_ratio=0.3, run_name='', ckpt_period=25,
+                 pop_size=200, run_name='', ckpt_period=25,
                  load_info=['False', '_', '_'],
                  td_mut_scale_V=1e-2, td_mut_scale_a=1e-4,
                  td_mut_scale_b=1e-6, plateau_len=200, decay_mult=1):
@@ -31,19 +30,6 @@ class EGA:
         # Initializing globals
         self.iterations = iterations
         self.pop_size = pop_size
-        self.mut_prob = mut_prob
-        self.cross_prob = cross_prob
-        self.elite_ratio = elite_ratio
-        self.par_prob = par_prob
-        self.par_ratio = par_ratio
-        self.par_size = (int)(self.par_ratio * self.pop_size)
-        self.elite_size = (int)(self.elite_ratio * pop_size)
-        self.td_mut_scale_V = td_mut_scale_V
-        self.td_mut_scale_a = td_mut_scale_a
-        self.td_mut_scale_b = td_mut_scale_b
-        self.plateau_len = plateau_len
-        self.plateau_start = 0
-        self.decay_mult = decay_mult
 
         # Setting problem
         self.problem = None
@@ -59,7 +45,7 @@ class EGA:
 
         # IO
         if run_name != '':
-            self.run_name = 'saves/ega-' + self.problem_name + \
+            self.run_name = 'saves/pso-' + self.problem_name + \
                 '-' + run_name
             if not os.path.isdir(self.run_name):
                 os.mkdir(self.run_name)
@@ -68,7 +54,7 @@ class EGA:
             self.run_name = ''
         self.ckpt_period = ckpt_period
         self.load_ckpt = load_info[0] == 'True'
-        self.load_name = 'saves/ega-' + self.problem_name + '-' + \
+        self.load_name = 'saves/pso-' + self.problem_name + '-' + \
             load_info[1]
         self.load_iter = int(load_info[2])
 
