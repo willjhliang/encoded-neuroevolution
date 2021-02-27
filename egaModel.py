@@ -26,7 +26,8 @@ class EGA:
                  pop_size=200, mut_prob=0.3, cross_prob=0.2, elite_ratio=0.01,
                  par_prob=0.7, par_ratio=0.3,
                  td_mut_scale_V=1e-2, td_mut_scale_a=1e-4,
-                 td_mut_scale_b=1e-6, plateau_len=200, decay_mult=1):
+                 td_mut_scale_b=1e-6, plateau_len=200, decay_mult=1,
+                 do_cross=True, do_mut=True):
 
         # Initializing globals
         self.iterations = iterations
@@ -44,6 +45,8 @@ class EGA:
         self.plateau_len = plateau_len
         self.plateau_start = 0
         self.decay_mult = decay_mult
+        self.do_cross = do_cross
+        self.do_mut = do_mut
 
         # Setting problem
         self.problem = None
@@ -278,6 +281,8 @@ class EGA:
         return ret
 
     def cross(self, decoder1, decoder2):
+        if not self.do_cross:
+            return decoder1, decoder2
         # ret1, ret2 = self.decoder.cross(decoder1[1:], decoder2[1:], self.cross_prob)
         ret1 = decoder1[1:].copy()
         ret2 = decoder2[1:].copy()
@@ -299,6 +304,8 @@ class EGA:
         return ret1, ret2
 
     def mut(self, decoder):
+        if not self.do_mut:
+            return decoder
         # ret = self.decoder.mut(decoder[1:], self.mut_prob)
         ret = decoder[1:].copy()
         rand = np.random.rand(self.decoder.size)
