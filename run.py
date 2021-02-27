@@ -70,10 +70,16 @@ def stepRank(rank):
     past_pop = np.array([])
     load_iter = 0
     iterations_per = 1000
+
+    td_mut_scale_V = 2e-1
+    td_mut_scale_a = 2e-3
+    td_mut_scale_b = 2e-5
     for r in range(1, rank + 1):
         ega = EGA('weights', r, iterations=iterations_per, pop_size=200,
                   run_name=run_name, ckpt_period=100,
-                  load_info=['False', '_', str(load_iter)], plateau_len=200)
+                  load_info=['False', '_', str(load_iter)], plateau_len=200,
+                  td_mut_scale_V=td_mut_scale_V, td_mut_scale_a=td_mut_scale_a,
+                  td_mut_scale_b=td_mut_scale_b)
         ega.initialize_pop()
 
         # Set up population with previous run
@@ -102,6 +108,10 @@ def stepRank(rank):
         past_pop = []
         for p in range(ega.pop_size):
             past_pop.append(ega.expand_decoder(ega.pop[p]))
+
+        td_mut_scale_V = max(1e-2, td_mut_scale_V - 1e-2)
+        td_mut_scale_a = max(1e-4, td_mut_scale_a - 1e-4)
+        td_mut_scale_b = max(1e-6, td_mut_scale_b - 1e-6)
 
 
 if __name__ == '__main__':

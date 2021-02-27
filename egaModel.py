@@ -332,6 +332,7 @@ class EGA:
                     self.plateau_start = t
 
 
+
     def initialize_pop(self):
         if self.load_ckpt:
             self.pop = np.load(self.load_name + '/iter-' + str(self.load_iter) + '.npy')
@@ -473,7 +474,7 @@ class EGA:
                     self.pop[i + 1][0] = self.count
                     self.count += 1
 
-            self.update_params(t, fitness)
+            # self.update_params(t, fitness)
 
             # Recording performance
             if self.run_name != '':
