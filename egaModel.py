@@ -141,8 +141,7 @@ class EGA:
         if self.problem_name == 'weights':
             self.td_sizes = [[[28, 28, 16, 32], [0, 0, 0]]]
 
-        self.decoder = ETD(td_N, self.td_sizes, self.layer_shapes, self.layer_sizes,
-                           self.td_mut_scale_V, self.td_mut_scale_a, self.td_mut_scale_b)
+        self.decoder = ETD(td_N, self.td_sizes, self.layer_shapes, self.layer_sizes)
 
         # Initializing population variables
         self.count = 0
@@ -311,8 +310,20 @@ class EGA:
         rand = np.random.rand(self.decoder.size)
         mut = ret[rand < self.mut_prob]
         mut_type = self.decoder.compressed_type[rand < self.mut_prob]
-        mut[mut_type == 'V'] += np.random.normal(0, self.td_mut_scale_V,
-                                                 np.shape(mut[mut_type == 'V']))
+
+        lo = mut[mut_type == 'V'] + 1  # Distance to -1
+        hi = 1 - mut[mut_type == 'V']  # Distance to +1
+        func_lo = 1 / (1 + np.exp(-self.td_mut_scale_V * lo))  # Lower bound
+        func_hi = 1 / (1 + np.exp(-self.td_mut_scale_V * hi))  # Upper bound
+        uniform_rand = np.zeros(np.shape(mut[mut_type == 'V']))
+        for i in range(uniform_rand.size):
+            uniform_rand[i] = np.random.uniform(func_lo[i], func_hi[i])
+        mut[mut_type == 'V'] += 1 / self.td_mut_scale_V * \
+            np.log(uniform_rand / (1 - uniform_rand))
+
+        # mut[mut_type == 'V'] += np.random.normal(0, self.td_mut_scale_V,
+        #                                          np.shape(mut[mut_type == 'V']))
+
         mut[mut_type == 'a'] += np.random.normal(0, self.td_mut_scale_a,
                                                  np.shape(mut[mut_type == 'a']))
         ret[rand < self.mut_prob] = mut

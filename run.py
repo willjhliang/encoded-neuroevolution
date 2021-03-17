@@ -5,10 +5,12 @@ sys.path.insert(0, 'problems')
 sys.path.insert(0, 'problems/snake')
 
 import os
+import shutil
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import numpy as np
 from egaModel import EGA
+from psoModel import PSO
 
 import cProfile
 import pstats
@@ -122,9 +124,16 @@ if __name__ == '__main__':
     else:
         load_info = load_info.split()
 
-    # ega = EGA('weights', 2, iterations=10, pop_size=100,
-    #           run_name=run_name, ckpt_period=1, load_info=load_info, plateau_len=100)
-    # ega.initialize_pop()
-    # ega.run()
-    # print(testError())
-    stepRank(16)
+    algo = EGA('weights', 2, iterations=10, pop_size=100,
+               run_name=run_name, ckpt_period=1, load_info=load_info, plateau_len=100)
+    # algo = PSO('weights', 8, iterations=100, pop_size=100,
+    #            run_name=run_name, ckpt_period=10, load_info=load_info)
+    if os.path.isdir(algo.run_name):
+        d = input('Overwrite folder ' + algo.run_name + ' (y/n): ')
+        if d == 'y':
+            shutil.rmtree(algo.run_name)
+            os.mkdir(algo.run_name)
+    algo.initialize_pop()
+    algo.run()
+
+    # stepRank(16)

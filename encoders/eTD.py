@@ -3,15 +3,14 @@ import scipy.io
 
 
 class ETD:
-    def __init__(self, td_N, td_sizes, layer_shapes, layer_sizes, mut_scale_V,
-                 mut_scale_a, mut_scale_b):
+    def __init__(self, td_N, td_sizes, layer_shapes, layer_sizes):
         self.layer_shapes = layer_shapes
         self.layer_sizes = layer_sizes
         self.td_N = td_N  # Same as rank
         self.td_sizes = td_sizes
-        self.mut_scale_V = mut_scale_V
-        self.mut_scale_a = mut_scale_a
-        self.mut_scale_b = mut_scale_b
+        # self.mut_scale_V = mut_scale_V
+        # self.mut_scale_a = mut_scale_a
+        # self.mut_scale_b = mut_scale_b
 
         # V: valueType_V_layer_rankNum_vectorNum
         # a: valueType_a_layer_rankNum

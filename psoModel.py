@@ -24,14 +24,15 @@ import pprint
 class PSO:
     def __init__(self, problem, td_N, iterations=100,
                  run_name='', ckpt_period=25, load_info=['False', '_', '_'],
-                 pop_size=200, W=0.5, c1=0.8, c2=0.9):
+                 pop_size=200, W=0.8, c1=1, c2=1):
 
         # Initializing globals
         self.iterations = iterations
         self.pop_size = pop_size
-        self.velocity = None
+        self.velocity = [None] * self.pop_size
         self.global_best = {'fitness': None, 'decoder': None}
-        self.personal_best = {'fitness': None, 'decoder': None}
+        self.personal_best = {'fitness': [None] * self.pop_size,
+                              'decoder': [None] * self.pop_size}
         self.W = W
         self.c1 = c1
         self.c2 = c2
@@ -129,8 +130,7 @@ class PSO:
         if self.problem_name == 'weights':
             self.td_sizes = [[[28, 28, 16, 32], [0, 0, 0]]]
 
-        self.decoder = ETD(td_N, self.td_sizes, self.layer_shapes, self.layer_sizes,
-                           self.td_mut_scale_V, self.td_mut_scale_a, self.td_mut_scale_b)
+        self.decoder = ETD(td_N, self.td_sizes, self.layer_shapes, self.layer_sizes)
 
         # Initializing population variables
         self.count = 0
@@ -277,17 +277,18 @@ class PSO:
     def move(self, decoder, velocity, personal_best):
         ret = decoder[1:].copy()
         v = self.W * velocity + \
-            self.c1 * random.random() * (personal_best - decoder) + \
-            self.c2 * random.random() * (self.global_best['decoder'] - decoder)
+            self.c1 * random.random() * (personal_best - decoder[1:]) + \
+            self.c2 * random.random() * (self.global_best['decoder'] - decoder[1:])
         ret = ret + v
         ret = np.concatenate((np.array([decoder[0]], copy=True), ret))
 
         return ret, v
 
-    def update_params(self):
-        # TODO changing c1 and c2
-        pass
-
+    def update_params(self, t):
+        N = self.iterations
+        self.W = (0.4 / N ** 2) * (t - N) ** 2 + 0.4
+        self.c1 = -3 * t / N + 3.5
+        self.c2 = 3 * t / N + 0.5
 
     def initialize_pop(self):
         if self.load_ckpt:
@@ -300,6 +301,7 @@ class PSO:
             for p in range(self.pop_size):
                 self.pop[p] = self.compress_decoder(self.get_decoder())
                 self.pop[p] = self.clip(self.pop[p])
+                self.velocity[p] = (np.random.random(self.compress_len - 1) - 0.5) / 100
             if self.problem_name[0:5] == 'snake':
                 randx = np.random.randint(1, 20, 3000)
                 randy = np.random.randint(1, 20, 3000)
@@ -353,29 +355,35 @@ class PSO:
                     steps[p], score[p], art_score[p], move_distributions[p], _, _, _ \
                         = self.problem.test(model, food_arr=self.food_arr)
                     fitness[p] = art_score[p]
-                    if fitness[p] > self.global_best['fitness']:
-                        self.global_best['decoder'] = self.pop[p]
-                    if fitness[p] > self.personal_best['fitness'][p]:
-                        self.personal_best['decoder'][p] = self.pop[p]
+                    if self.global_best['fitness'] is None or \
+                            fitness[p] > self.global_best['fitness']:
+                        self.global_best['decoder'] = self.pop[p][1:]
+                    if self.personal_best['fitness'][p] is None or \
+                            fitness[p] > self.personal_best['fitness'][p]:
+                        self.personal_best['decoder'][p] = self.pop[p][1:]
             if self.problem_name == 'MNIST':
                 for p in range(self.pop_size):
                     model = self.set_tf_weights(model, self.decode(self.pop[p]))
                     cce[p], acc[p] = self.problem.test(model)
                     fitness[p] = cce[p]
-                    if fitness[p] < self.global_best['fitness']:
-                        self.global_best['decoder'] = self.pop[p]
-                    if fitness[p] < self.personal_best['fitness'][p]:
-                        self.personal_best['decoder'][p] = self.pop[p]
+                    if self.global_best['fitness'] is None or \
+                            fitness[p] < self.global_best['fitness']:
+                        self.global_best['decoder'] = self.pop[p][1:]
+                    if self.personal_best['fitness'][p] is None or \
+                            fitness[p] < self.personal_best['fitness'][p]:
+                        self.personal_best['decoder'][p] = self.pop[p][1:]
             if self.problem_name == 'weights':
                 diff = pool.map(self.problem.test,
                                 [self.decode(ind)['W0'] for ind in self.pop])
                 diff = np.array(diff)
                 fitness = diff
                 for p in range(self.pop_size):
-                    if fitness[p] < self.global_best['fitness']:
-                        self.global_best['decoder'] = self.pop[p]
-                    if fitness[p] < self.personal_best['fitness'][p]:
-                        self.personal_best['decoder'][p] = self.pop[p]
+                    if self.global_best['fitness'] is None or \
+                            fitness[p] < self.global_best['fitness']:
+                        self.global_best['decoder'] = self.pop[p][1:]
+                    if self.personal_best['fitness'][p] is None or \
+                            fitness[p] < self.personal_best['fitness'][p]:
+                        self.personal_best['decoder'][p] = self.pop[p][1:]
 
             # Sorting population
             if self.problem_name[0:5] == 'snake':
@@ -396,9 +404,9 @@ class PSO:
 
             # Moving particles
             for i in range(self.pop_size):
-                self.pop[i], self.velocity[i] = self.move(self.pop[i], self.velocity[i], self.personal_best[i])
+                self.pop[i], self.velocity[i] = self.move(self.pop[i], self.velocity[i], self.personal_best['decoder'][i])
 
-            self.update_params(t, fitness)
+            self.update_params(t)
 
             # Recording performance
             if self.run_name != '':
