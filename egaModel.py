@@ -6,6 +6,7 @@ from snakeScore import SnakeScore
 from snakeAction import SnakeAction
 from mnist import MNIST
 from weights import Weights
+from benchmark import BM
 
 from eAR import EAR
 from eTD import ETD
@@ -58,6 +59,8 @@ class EGA:
             self.problem = MNIST()
         if problem == 'weights':
             self.problem = Weights()
+        if problem == 'benchmark':
+            self.problem = BM()
         self.problem_name = problem
 
         # IO
@@ -109,6 +112,10 @@ class EGA:
             self.layers = [['null']]
             self.layer_shapes = [[[28, 28, 16, 32], [0]]]
             self.layer_sizes = [[28 * 28 * 16 * 32, 0]]
+        if self.problem_name == 'benchmark':
+            self.layers = [['null']]
+            self.layer_shapes = [[[1000], [0]]]
+            self.layer_sizes = [[1000, 0]]
 
         ##################################################
         # DECODERS
@@ -140,8 +147,13 @@ class EGA:
                              [[7, 10, 12], [1, 2, 5]]]
         if self.problem_name == 'weights':
             self.td_sizes = [[[28, 28, 16, 32], [0, 0, 0]]]
+        if self.problem_name == 'benchmark':
+            self.td_sizes = [[[1000], [0]]]
 
         self.decoder = ETD(td_N, self.td_sizes, self.layer_shapes, self.layer_sizes)
+
+        if self.problem_name == 'benchmark':
+            self.problem_name = 'weights'  # Treat this like weights from now on
 
         # Initializing population variables
         self.count = 0
@@ -185,24 +197,11 @@ class EGA:
         ret['id'] = self.count
         self.count += 1
 
-        # ret = {'id': self.count}
-        # self.count += 1
-
-        # for e in self.decoder_methods:
-        #     tret = e.decoder(custom_data)
-        #     for key in tret:
-        #         ret[key] = tret[key]
-
         return ret
 
     def compress_decoder(self, decoder):
         ret = self.decoder.compress_decoder(decoder)
         ret = np.concatenate((np.array([decoder['id']]), ret))
-
-        # ret = np.array([decoder['id']])
-        # for e in self.decoder_methods:
-        #     tret = e.compress_decoder(decoder)
-        #     ret = np.concatenate((ret, tret))
 
         return ret
 
@@ -210,39 +209,19 @@ class EGA:
         ret = self.decoder.expand_decoder(decoder[1:])
         ret['id'] = decoder[0]
 
-        # ret = {'id': decoder[0]}
-        # decoder = decoder[1:]
-        # for e in self.decoder_methods:
-        #     tret, decoder = e.expand_decoder(decoder)
-        #     for key in tret:
-        #         ret[key] = tret[key]
-
         return ret
 
     def decode(self, decoder):
         decoder = self.expand_decoder(decoder)
         ret = self.decoder.decode(decoder)
 
-        # decoder = self.expand_decoder(decoder)
-        # ret = {}
-        # for i in range(len(self.layers)):
-        #     ret['W' + str(i)] = np.zeros(shape=self.layer_shapes[i][0])
-        #     ret['b' + str(i)] = np.zeros(shape=self.layer_shapes[i][1])
-        #     ret['func' + str(i)] = self.layers[i][-1]
-
-        # for e in self.decoder_methods:
-        #     tret = e.decode(decoder)
-        #     for i in range(len(self.layers)):
-        #         ret['W' + str(i)] += tret['W' + str(i)]
-        #         ret['b' + str(i)] += tret['b' + str(i)]
-
         return ret
 
     def get_tf_model(self):
-        model = tf.keras.models.Sequential()
+        model = tf.keras.models.sequential()
         for i in range(0, len(self.layers)):
             if self.layers[i][0] == 'input':
-                model.add(tf.keras.layers.InputLayer(input_shape=self.layers[i][1:]))
+                model.add(tf.keras.layers.inputlayer(input_shape=self.layers[i][1:]))
             if self.layers[i][0] == 'conv':
                 model.add(tf.keras.layers.Conv2D(self.layers[i][2], self.layers[i][1],
                                                  activation=self.layers[i][3], padding=self.layers[i][4]))
@@ -282,7 +261,7 @@ class EGA:
     def cross(self, decoder1, decoder2):
         if not self.do_cross:
             return decoder1, decoder2
-        # ret1, ret2 = self.decoder.cross(decoder1[1:], decoder2[1:], self.cross_prob)
+
         ret1 = decoder1[1:].copy()
         ret2 = decoder2[1:].copy()
         swap = np.random.rand(*self.decoder.ids.shape) < self.cross_prob
@@ -305,19 +284,21 @@ class EGA:
     def mut(self, decoder):
         if not self.do_mut:
             return decoder
-        # ret = self.decoder.mut(decoder[1:], self.mut_prob)
+
         ret = decoder[1:].copy()
         rand = np.random.rand(self.decoder.size)
         mut = ret[rand < self.mut_prob]
         mut_type = self.decoder.compressed_type[rand < self.mut_prob]
 
-        lo = mut[mut_type == 'V'] + 1  # Distance to -1
-        hi = 1 - mut[mut_type == 'V']  # Distance to +1
+        lo = mut[mut_type == 'V'] - self.decoder.clip_lo  # Distance to lo
+        hi = self.decoder.clip_hi - mut[mut_type == 'V']  # Distance to hi
         func_lo = 1 / (1 + np.exp(-self.td_mut_scale_V * lo))  # Lower bound
         func_hi = 1 / (1 + np.exp(-self.td_mut_scale_V * hi))  # Upper bound
         uniform_rand = np.zeros(np.shape(mut[mut_type == 'V']))
         for i in range(uniform_rand.size):
             uniform_rand[i] = np.random.uniform(func_lo[i], func_hi[i])
+
+        # TODO: Make this part work with any clip_lo/clip_hi; currently only works with [-1, 1]
         mut[mut_type == 'V'] += 1 / self.td_mut_scale_V * \
             np.log(uniform_rand / (1 - uniform_rand))
 
@@ -348,8 +329,6 @@ class EGA:
                     self.decoder.mut_scale_a = self.td_mut_scale_a
                     self.decoder.mut_scale_b = self.td_mut_scale_b
                     self.plateau_start = t
-
-
 
     def initialize_pop(self):
         if self.load_ckpt:

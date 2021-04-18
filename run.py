@@ -9,6 +9,7 @@ import shutil
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import numpy as np
+np.set_printoptions(suppress=True)  # Disables scientific notation
 from egaModel import EGA
 from psoModel import PSO
 
@@ -73,15 +74,13 @@ def stepRank(rank):
     load_iter = 0
     iterations_per = 1000
 
-    td_mut_scale_V = 2e-1
-    td_mut_scale_a = 2e-3
-    td_mut_scale_b = 2e-5
+    # td_mut_scale_V = 2e-1
+    # td_mut_scale_a = 2e-3
+    # td_mut_scale_b = 2e-5
     for r in range(1, rank + 1):
         ega = EGA('weights', r, iterations=iterations_per, pop_size=200,
                   run_name=run_name, ckpt_period=100,
-                  load_info=['False', '_', str(load_iter)], plateau_len=200,
-                  td_mut_scale_V=td_mut_scale_V, td_mut_scale_a=td_mut_scale_a,
-                  td_mut_scale_b=td_mut_scale_b)
+                  load_info=['False', '_', str(load_iter)], plateau_len=200)
         ega.initialize_pop()
 
         # Set up population with previous run
@@ -111,9 +110,9 @@ def stepRank(rank):
         for p in range(ega.pop_size):
             past_pop.append(ega.expand_decoder(ega.pop[p]))
 
-        td_mut_scale_V = max(1e-2, td_mut_scale_V - 1e-2)
-        td_mut_scale_a = max(1e-4, td_mut_scale_a - 1e-4)
-        td_mut_scale_b = max(1e-6, td_mut_scale_b - 1e-6)
+        # td_mut_scale_V = max(1e-2, td_mut_scale_V - 1e-2)
+        # td_mut_scale_a = max(1e-4, td_mut_scale_a - 1e-4)
+        # td_mut_scale_b = max(1e-6, td_mut_scale_b - 1e-6)
 
 
 if __name__ == '__main__':
@@ -124,8 +123,9 @@ if __name__ == '__main__':
     else:
         load_info = load_info.split()
 
-    algo = EGA('weights', 2, iterations=10, pop_size=100,
-               run_name=run_name, ckpt_period=1, load_info=load_info, plateau_len=100)
+    algo = EGA('benchmark', 1, iterations=10000, pop_size=200,
+               run_name=run_name, ckpt_period=1000, load_info=load_info, plateau_len=100,
+               td_mut_scale_V=10)
     # algo = PSO('weights', 8, iterations=100, pop_size=100,
     #            run_name=run_name, ckpt_period=10, load_info=load_info)
     if os.path.isdir(algo.run_name):
