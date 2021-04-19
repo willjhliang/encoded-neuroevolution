@@ -115,25 +115,52 @@ def stepRank(rank):
         # td_mut_scale_b = max(1e-6, td_mut_scale_b - 1e-6)
 
 
-if __name__ == '__main__':
-    run_name = input('Run name: ')
-    load_info = input('Load checkpoint info (bool name iter): ')
-    if load_info == '':
-        load_info = ['False', '_', '-1']
-    else:
-        load_info = load_info.split()
+def overwrite_save(algo):
+    if os.path.isdir(algo.run_name):
+        shutil.rmtree(algo.run_name)
+        os.mkdir(algo.run_name)
 
+
+if __name__ == '__main__':
+    # run_name = input('Run name: ')
+    # load_info = input('Load checkpoint info (bool name iter): ')
+    # if load_info == '':
+    #     load_info = ['False', '_', '-1']
+    # else:
+    #     load_info = load_info.split()
+
+    run_name = 'r16_prob1_mut01'
+    load_info = ['False', '_', '-1']
     algo = EGA('benchmark', 1, iterations=10000, pop_size=200,
                run_name=run_name, ckpt_period=1000, load_info=load_info, plateau_len=100,
-               td_mut_scale_V=10)
-    # algo = PSO('weights', 8, iterations=100, pop_size=100,
-    #            run_name=run_name, ckpt_period=10, load_info=load_info)
-    if os.path.isdir(algo.run_name):
-        d = input('Overwrite folder ' + algo.run_name + ' (y/n): ')
-        if d == 'y':
-            shutil.rmtree(algo.run_name)
-            os.mkdir(algo.run_name)
+               td_mut_scale_V=0.1)
+    overwrite_save(algo)
     algo.initialize_pop()
     algo.run()
 
-    # stepRank(16)
+    run_name = 'r16_prob1_mut1'
+    load_info = ['False', '_', '-1']
+    algo = EGA('benchmark', 1, iterations=10000, pop_size=200,
+               run_name=run_name, ckpt_period=1000, load_info=load_info, plateau_len=100,
+               td_mut_scale_V=1)
+    overwrite_save(algo)
+    algo.initialize_pop()
+    algo.run()
+
+    run_name = 'r16_prob1_mut50'
+    load_info = ['False', '_', '-1']
+    algo = EGA('benchmark', 1, iterations=10000, pop_size=200,
+               run_name=run_name, ckpt_period=1000, load_info=load_info, plateau_len=100,
+               td_mut_scale_V=50)
+    overwrite_save(algo)
+    algo.initialize_pop()
+    algo.run()
+
+    run_name = 'r16_prob1_mut100'
+    load_info = ['False', '_', '-1']
+    algo = EGA('benchmark', 1, iterations=10000, pop_size=200,
+               run_name=run_name, ckpt_period=1000, load_info=load_info, plateau_len=100,
+               td_mut_scale_V=100)
+    overwrite_save(algo)
+    algo.initialize_pop()
+    algo.run()

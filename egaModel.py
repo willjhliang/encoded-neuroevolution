@@ -353,6 +353,7 @@ class EGA:
             self.start_iter = 1
 
     def run(self):
+        print('Starting ' + self.run_name)
 
         # Preparing records and files
         if self.run_name != '':
