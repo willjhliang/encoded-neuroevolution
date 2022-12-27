@@ -1,4 +1,4 @@
-# Encoded Neuroevolution
+# Mastering Snake With Neuroevolution and Tensor Decomposition
 
 <img src="Process Diagram.png" width="500"/>
 
