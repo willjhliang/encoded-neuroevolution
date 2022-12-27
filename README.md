@@ -1,4 +1,4 @@
-# Mastering Snake With Neuroevolution and Tensor Decomposition
+# Mastering Snake With Neuroevolution Search and Tensor Decomposition Optimization
 
 <img src="Process Diagram.png" width="500"/>
 
